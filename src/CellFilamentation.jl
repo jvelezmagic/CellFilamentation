@@ -16,4 +16,15 @@ using Reexport
     Plots,
     Random
 
+using DrWatson: dict_list
+using Lazy: @>, @>>, @as
+export dict_list
+export @>, @>>, @as
+
+include("model-callbacks.jl")
+include("model-cell.jl")
+include("model-equations.jl")
+include("model-simulation.jl")
+include("utils-toxin_entry.jl")
+
 end
