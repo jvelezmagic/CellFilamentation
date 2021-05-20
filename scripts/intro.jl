@@ -1,3 +1,4 @@
 using DrWatson
-@quickactivate "CellFilamentation"
+@quickactivate :CellFilamentation
+
 DrWatson.greet()
