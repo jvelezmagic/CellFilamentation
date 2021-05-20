@@ -2,8 +2,7 @@ module CellFilamentation
 
 using Reexport
 
-@reexport using 
-    Base.Iterators,
+@reexport using Base.Iterators,
     CSV,
     DataFrames,
     DataFramesMeta,
