@@ -21,8 +21,8 @@ function simulate(
     cb = filamentation_callbacks!()
     prob =
         stochastic ?
-        SDEProblem(filamentation_de, filamentation_noise, u0, tspan, p; callback = cb) :
-        ODEProblem(filamentation_de, u0, tspan, p; callback = cb)
+        SDEProblem(filamentation_de_sym, filamentation_noise, u0, tspan, p; callback = cb) :
+        ODEProblem(filamentation_de_sym, u0, tspan, p; callback = cb)
 
     # Solve the problem.
     sol = solve(prob; isoutofdomain = (y, p, t) -> any(x -> x < 0, y), kwargs...)
@@ -56,7 +56,7 @@ function simulate_filamentation(
     # Define and solve the problem; SDE or ODE.
     if trajectories > 0
         sol = @> begin
-            SDEProblem(filamentation_de, filamentation_noise, u0, tspan, p; callback = cb)
+            SDEProblem(filamentation_de_sym, filamentation_noise, u0, tspan, p; callback = cb)
             EnsembleProblem()
             solve(
                 EnsembleThreads(),
@@ -67,7 +67,7 @@ function simulate_filamentation(
         end
     else
         sol = @> begin
-            ODEProblem(filamentation_de, u0, tspan, p; callback = cb)
+            ODEProblem(filamentation_de_sym, u0, tspan, p; callback = cb)
             solve(isoutofdomain = isoutofdomain, kwargs...)
         end
     end

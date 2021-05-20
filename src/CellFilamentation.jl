@@ -24,6 +24,7 @@ export @>, @>>, @as
 include("model-callbacks.jl")
 include("model-cell.jl")
 include("model-equations.jl")
+include("model-plot.jl")
 include("model-simulation.jl")
 include("utils-toxin_entry.jl")
 
