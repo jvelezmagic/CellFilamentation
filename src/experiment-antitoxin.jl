@@ -59,16 +59,12 @@ end
 function plot_antitoxin_experiment(df, plot_heatmap::Bool = false)
 
     if plot_heatmap
-        n_cells = maximum(df[!, :value])
-        new_df =
-            df |>
-            x ->
-                @transform(x, value = :value / n_cells * 100.0) |>
-                x ->
-                    @where(x, :variable .== "Dead") |>
-                    x -> @transform(x, value = 100.0 .- :value)
+        new_df = @linq df |>
+            transform(value = :value / maximum(:value) * 100.0) |>
+            where(:variable .== "Dead") |>
+            transform(value = 100.0 .- :value)
 
-        m = convert(Matrix, unstack(new_df, :time, :sigma, :value)[!, Not(:time)])'
+        m = Matrix(unstack(new_df, :time, :sigma, :value)[!, Not(:time)])'
         p = heatmap(unique(new_df[!, :time]), unique(new_df[!, :sigma]), m)
         xlabel!(p, "Exposure time")
         ylabel!(p, "Population variability")
