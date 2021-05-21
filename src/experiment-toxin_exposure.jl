@@ -71,6 +71,7 @@ end
 function plot_toxin_exposure_experiment(df, width = 300, height = 300)
 
     state_type = eltype(df[!, :state])
+    df = deepcopy(df)
     df[!, :experiment] = map(
         x -> x == :Control ? "Without filamentation" : "Filamentation",
         df[!, :experiment],
@@ -82,8 +83,8 @@ function plot_toxin_exposure_experiment(df, width = 300, height = 300)
             width = width,
             height = height,
             mark = :rect,
-            x = {"exposure_time:q", title = "Exposure time", axis = {labelAngle = 0}},
-            y = {"amount_toxin:q", sort = "descending", title = "Amount toxin"},
+            x = {"exposure_time:o", title = "Exposure time", axis = {labelAngle = 0, labelOverlap="parity"}},
+            y = {"amount_toxin:o", sort = "descending", title = "Amount toxin", axis = {labelOverlap="parity"}},
             column = {"experiment:n", title = "Experiment", sort = [:Control, :Normal]},
             color = {"state:n", title = "Cell state", sort = [:Normal, :Stressed, :Dead]}
         )
