@@ -39,4 +39,4 @@ function filamentation_noise(du, u, p, t)
     du[2] = u[2] * p[1].noise_height
 end
 
-filamentation_de_sym = ODEFunction(filamentation_de, syms=[:internal_toxin, :length])
+filamentation_de_sym = ODEFunction(filamentation_de, syms = [:internal_toxin, :length])
