@@ -21,6 +21,7 @@ using Lazy: @>, @>>, @as
 export dict_list
 export @>, @>>, @as
 
+include("experiment-antitoxin.jl")
 include("experiment-toxin_exposure.jl")
 include("model-callbacks.jl")
 include("model-cell.jl")
