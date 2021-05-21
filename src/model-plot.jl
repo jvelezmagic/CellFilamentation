@@ -1,4 +1,5 @@
 export simulation_plot
+import Measures
 
 # function simulation_plot(
 #     cell::Cell,
@@ -121,7 +122,7 @@ function simulation_plot(
 
     ## Axis.
     x_max = sol.t[end] + 1
-    y_max = cell.kill_threshold * 1.07
+    y_max = cell.kill_threshold * 1.11
     
     # Initialize empty plot.
     p = plot(; ll...)
@@ -169,6 +170,9 @@ function simulation_plot(
     ylabel!(p, "Internal toxin", subplot=1)
     ylabel!(p, "Length", subplot=2)
     xlims!(p, (0, x_max))
-    
+    title!(p, " ")
+    plot!(p, xformatter=_->"", subplot=1)
+    plot!(p, bottom_margin = -10Measures.mm, subplot=1)
+
     return p
 end
