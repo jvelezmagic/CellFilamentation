@@ -93,6 +93,7 @@ function simulation_plot(
     time::Array{Float64,1},
     toxin::Array{Float64,1},
     trajectories::Int64 = 0;
+    sde_alpha::Float64 = 1/50,
     kwargs...,
 )
 
@@ -106,13 +107,13 @@ function simulation_plot(
     sol, sol_cell = simulate_filamentation(cell, time, toxin, trajectories = 0)
     sols_sde, _ =
         simulate_filamentation(cell, time, toxin, trajectories = trajectories; kwargs...)
-    sols_sde = EnsembleSummary(sols_sde, time)
+    # sols_sde = EnsembleSummary(sols_sde, time)
 
 
     # Establish defaults for plotting.
     ll = Dict(:layout => (2, 1), :ga => 0.4, :legend => false, :link => :x)
     ode = Dict(:lw => 2.0, :lc => :black)
-    sde = Dict(:lw => 1.0, :fillcolor => "#676BA0", :linecolor => "#676BA0", :alpha => 1.0)
+    sde = Dict(:lw => 1.0, :fillcolor => "#676BA0", :linecolor => "#676BA0", :alpha => sde_alpha)
     bkg_control = Dict(:color => "#FF811A", :alpha => 0.5)
     bkg_normal = Dict(:color => "#72D861", :alpha => 0.5)
     lines = Dict(:ls => :dash, :lw => 1.5)
