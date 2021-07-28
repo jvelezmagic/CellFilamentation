@@ -43,7 +43,7 @@ lineages_df <- read_tsv(lineages_files, show_col_types = FALSE) %>%
 
 ## Minimal preprocessing
 
-```{r}
+```{r minimal_preprocessing}
 processed_lineages_df <- lineages_df %>% 
   mutate(
     gfp = log10(gfp),
@@ -65,8 +65,7 @@ theme_set(ggpubr::theme_pubr())
 ```
 
 
-```{r}
-
+```{r donout_chart}
 donout_df <- processed_lineages_df %>% 
   count(experiment_id, filamentaded_track) %>% 
   arrange(filamentaded_track) %>% 
@@ -120,7 +119,7 @@ donout_df %>%
 
 
 ### Mean GFP
-```{r}
+```{r gfp_distribution}
 processed_lineages_df %>% 
   group_by(experiment_id, trap_id, track_id, filamentaded_track) %>% 
   summarize(mean_gfp = mean(gfp), .groups = "drop") %>%
@@ -140,31 +139,7 @@ processed_lineages_df %>%
   )
 ```
 
-```{r}
-processed_lineages_df %>%
-  ggplot() +
-  annotate("rect", xmin=60, xmax=140, ymin=-Inf, ymax=Inf, alpha=1/2, color = "transparent", fill = "#FCB565") +
-  geom_density(
-    aes(
-      x = time,
-      color = filamentaded_at_frame,
-      fill = filamentaded_at_frame
-    ),
-    alpha = 1/2
-  ) +
-  facet_wrap(. ~ experiment_id) +
-  #scale_y_continuous(labels = scales::percent) +
-  labs(
-    x = "Time (minutes)",
-    y = "Density",
-    color = "Filamentaded cell",
-    fill = "Filamentaded cell"
-  ) +
-  theme_bw() +
-  theme(legend.position = "top")
-```
-
-```{r}
+```{r,area_chart}
 processed_lineages_df %>% 
   count(experiment_id, filamentaded_at_frame, time) %>% 
   group_by(experiment_id, time) %>% 
@@ -217,12 +192,11 @@ processed_lineages_df %>%
   )
 ```
 
-```{r}
+```{r rain_plot}
 library(ggdist)
 
-processed_lineages_df %>% 
+p_1 <- processed_lineages_df %>% 
   filter(time == 0) %>% 
-  #filter(metric != "length") %>% 
   ggplot(
     aes(
       x = filamentaded_track,
@@ -244,13 +218,7 @@ processed_lineages_df %>%
     outlier.shape = NA,
     alpha = 1/3
   ) +
-  geom_point(
-    size = 0.8,
-    alpha = 0.01,
-    position = position_jitter(
-      seed = 1, width = .01
-    )
-  ) + 
+  ggdist::geom_dots(side = "bottom", alpha = 1/10) +
   facet_wrap(experiment_id ~ .) +
   theme_bw() +
   theme(legend.position = "top") +
@@ -261,12 +229,11 @@ processed_lineages_df %>%
     fill = "Filamentaded track"
   ) +
   scale_y_continuous(limits = c(0, 100)) +
-  coord_flip()
+  coord_flip() +
+  stat_compare_means(label.y = 60, label.x = 1.5)
 
-
-processed_lineages_df %>% 
+p_2 <- processed_lineages_df %>% 
   filter(time == 0) %>% 
-  #filter(metric != "length") %>% 
   ggplot(
     aes(
       x = filamentaded_track,
@@ -274,7 +241,8 @@ processed_lineages_df %>%
       group = filamentaded_track,
       fill = filamentaded_track,
       color = filamentaded_track
-    )
+    ),
+    side = "bottom"
   ) +
   ggdist::stat_halfeye(
     adjust = .5, 
@@ -288,13 +256,7 @@ processed_lineages_df %>%
     outlier.shape = NA,
     alpha = 1/3
   ) +
-  geom_point(
-    size = 0.8,
-    alpha = 0.01,
-    position = position_jitter(
-      seed = 1, width = .01
-    )
-  ) + 
+  ggdist::geom_dots(side = "bottom", alpha = 1/10) +
   facet_wrap(experiment_id ~ .) +
   theme_bw() +
   theme(legend.position = "top") +
@@ -304,11 +266,22 @@ processed_lineages_df %>%
     color = "Filamentaded track",
     fill = "Filamentaded track"
   ) +
-  #scale_y_continuous(limits = c(0, 100)) +
-  coord_flip()
+  coord_flip() +
+  stat_compare_means(label.y = 2.5, label.x = 1.5)
+
+p_2
 ```
 
-```{r}
+```{r rain_cloud_2}
+library(patchwork)
+library(ggpubr)
+
+(p_1 / p_2) +
+  plot_layout(guides = 'collect')
+```
+
+
+```{r metric_charts}
 processed_lineages_df %>% 
   select(experiment_id, filamentaded_track, time, length, gfp, ds_red) %>% 
   pivot_longer(
@@ -340,4 +313,61 @@ processed_lineages_df %>%
   theme_bw() +
   theme(legend.position = "top")
 ```
+```{r survival_probability}
+gfp_control_hist <- processed_lineages_df %>% 
+  ggplot(aes(x = gfp)) +
+  geom_histogram(bins = 100)
 
+gfp_hist_data <- gfp_control_hist %>% 
+  ggplot_build() %>% 
+  pluck("data", 1) %>% 
+  select(count, x, xmin, xmax) %>% 
+  as_tibble()
+
+gfp_breaks <- gfp_hist_data %>% 
+  {c(.$xmin, last(.$xmax))}
+
+processed_lineages_df %>%
+  group_by(experiment_id, lineage_id, trap_id, filamentaded_track) %>% 
+  summarise(
+    initial_gfp = first(gfp),
+    is_long_track = first(centered_frame) < unique(centered_antibiotic_start_frame) &&
+      last(centered_frame) > unique(centered_antibiotic_end_frame),
+    .groups = "drop"
+  ) %>% 
+  filter(is_long_track) %>%
+  group_by(experiment_id, filamentaded_track) %>% 
+  group_modify(~{
+    tibble(
+      plot = list(
+        ggplot(data = .x, aes(x = initial_gfp)) +
+        geom_histogram(breaks = gfp_breaks)
+      )
+    )
+  }) %>% 
+  mutate(
+    counts = map(plot, ggplot_build),
+    counts = map(counts, pluck, "data", 1),
+    counts = map(counts, add_column, control_count = gfp_hist_data$count),
+    counts = map(counts, select, gfp = x, control_count, count)
+  ) %>% 
+  unnest(counts) %>% 
+  mutate(
+    survival_probability = count / control_count,
+    survival_probability = survival_probability / max(survival_probability, na.rm = TRUE)
+  ) %>% 
+  filter(survival_probability != 0) %>% 
+  ggplot(aes(x = gfp, y = survival_probability, color = filamentaded_track, linetype = experiment_id)) +
+  geom_point() +
+  geom_line() +
+  theme_bw() +
+  theme(
+    legend.position = "top"
+  ) +
+  labs(
+    x = "Initial GFP",
+    y = "Survival probability",
+    color = "Filamentaded track",
+    linetype = "Experiment"
+  )
+```
