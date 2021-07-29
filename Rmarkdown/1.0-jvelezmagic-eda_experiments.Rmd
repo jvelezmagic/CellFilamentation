@@ -107,7 +107,7 @@ donout_df %>%
   coord_polar(theta = "y") +
   xlim(c(-1, 4)) +
   labs(
-    fill = "Filamentaded track",
+    fill = "Filamentaded cell",
     caption = glue("Total: {format(donout_total, big.mark=',')} tracks")
   ) +
   theme_void() +
@@ -149,7 +149,7 @@ processed_lineages_df %>%
     .groups = "drop"
   ) %>% 
   ggplot(aes(x = time, y = percentage, fill = filamentaded_at_frame)) +
-  geom_area(size = 0.5, alpha = 1/2) +
+  geom_area(size = 0.5, alpha = 1/1) +
   geom_vline(xintercept = c(60, 140), linetype = "dashed") +
   geom_text(
     data = data.frame(
@@ -223,10 +223,10 @@ p_1 <- processed_lineages_df %>%
   theme_bw() +
   theme(legend.position = "top") +
   labs(
-    x = "Filamentaded track",
+    x = "Filamentaded cell",
     y = "Initial length",
-    color = "Filamentaded track",
-    fill = "Filamentaded track"
+    color = "Filamentaded cell",
+    fill = "Filamentaded cell"
   ) +
   scale_y_continuous(limits = c(0, 100)) +
   coord_flip() +
@@ -261,15 +261,13 @@ p_2 <- processed_lineages_df %>%
   theme_bw() +
   theme(legend.position = "top") +
   labs(
-    x = "Filamentaded track",
+    x = "Filamentaded cell",
     y = "Initial GFP",
-    color = "Filamentaded track",
-    fill = "Filamentaded track"
+    color = "Filamentaded cell",
+    fill = "Filamentaded cell"
   ) +
   coord_flip() +
   stat_compare_means(label.y = 2.5, label.x = 1.5)
-
-p_2
 ```
 
 ```{r rain_cloud_2}
@@ -308,7 +306,7 @@ processed_lineages_df %>%
   labs(
     x = "Time (minutes)",
     y = "Value",
-    color = "Filamentaded track"
+    color = "Filamentaded cell"
   ) +
   theme_bw() +
   theme(legend.position = "top")
@@ -327,7 +325,7 @@ gfp_hist_data <- gfp_control_hist %>%
 gfp_breaks <- gfp_hist_data %>% 
   {c(.$xmin, last(.$xmax))}
 
-processed_lineages_df %>%
+survival_probability_df <- processed_lineages_df %>%
   group_by(experiment_id, lineage_id, trap_id, filamentaded_track) %>% 
   summarise(
     initial_gfp = first(gfp),
@@ -354,12 +352,19 @@ processed_lineages_df %>%
   unnest(counts) %>% 
   mutate(
     survival_probability = count / control_count,
-    survival_probability = survival_probability / max(survival_probability, na.rm = TRUE)
+    #survival_probability = survival_probability / max(survival_probability, na.rm = TRUE)
   ) %>% 
   filter(survival_probability != 0) %>% 
+  glimpse()
+```
+
+
+```{r survival_probability_plot}
+survival_probability_df %>% 
   ggplot(aes(x = gfp, y = survival_probability, color = filamentaded_track, linetype = experiment_id)) +
   geom_point() +
   geom_line() +
+  scale_y_continuous(labels = scales::percent) +
   theme_bw() +
   theme(
     legend.position = "top"
@@ -367,7 +372,69 @@ processed_lineages_df %>%
   labs(
     x = "Initial GFP",
     y = "Survival probability",
-    color = "Filamentaded track",
+    color = "Filamentaded cell",
     linetype = "Experiment"
   )
 ```
+
+```{r survival_probability_plot_area}
+survival_probability_df %>% 
+  group_by(filamentaded_track, gfp) %>% 
+  ggplot(aes(x = gfp, y = count, fill = filamentaded_track)) +
+  geom_area(position = "fill", stat="identity") +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
+  theme_bw() +
+  theme(
+    legend.position = "top"
+  ) +
+  labs(
+    x = "Initial GFP (log10)",
+    y = "Percentage of cells",
+    fill = "Filamentaded cell"
+  )
+```
+
+```{r}
+status_points_df <- processed_lineages_df %>% 
+  group_by(experiment_id, trap_id, track_id, filamentaded_track) %>% 
+  summarize(
+    first_false = which.min(filamentaded_at_frame),
+    first_true = which.max(filamentaded_at_frame),
+    initial_gfp = first(gfp),
+    sos_gfp = gfp[first_true],
+    end_gfp = last(gfp),
+    initial_length = first(length),
+    sos_length = length[first_true],
+    end_length = last(length),
+    initial_frame = first(centered_frame),
+    sos_frame = centered_frame[first_true],
+    end_frame = last(centered_frame),
+    life_time = end_frame - initial_frame,
+    .groups = "drop"
+  ) %>% 
+  filter(initial_frame <= sos_frame, sos_frame <= end_frame) %>% 
+  glimpse()  
+```
+
+```{r}
+status_points_df %>% 
+  count(experiment_id, filamentaded_track, life_time) %>% 
+  ggplot(aes(x = as.factor(life_time * 10), y = n, fill = filamentaded_track)) +
+  geom_bar(position = "fill", stat="identity", width = 1) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
+  facet_grid(experiment_id ~ .) +
+  theme_bw() +
+  theme(
+    legend.position = "top",
+    panel.spacing.y = unit(1, "lines")
+  ) +
+  labs(
+    x = "Cell life time",
+    y = "Percentage of cells",
+    fill = "Filamentaded cell"
+  )
+```
+
+
