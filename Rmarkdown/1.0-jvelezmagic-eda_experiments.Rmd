@@ -437,4 +437,35 @@ status_points_df %>%
   )
 ```
 
+```{r}
+status_points_df %>% 
+  group_by(experiment_id, filamentaded_track, life_time) %>% 
+  summarize(
+    n = n(),
+    initial_length = median(initial_length),
+    sos_length = median(sos_length),
+    end_length = median(end_length),
+    .groups = "drop"
+  ) %>% 
+  pivot_longer(
+    cols = contains("length"),
+    names_to = "length_type"
+  ) %>% 
+  mutate(
+    length_type = factor(length_type, levels = c("initial_length", "sos_length", "end_length"), labels = c("Initial", "SOS", "End"))
+  ) %>% 
+  ggplot(aes(x = life_time * 10, y = value)) +
+  geom_line(aes(group = life_time)) +
+  geom_point(aes(color = length_type), alpha = 1/1) +
+  facet_grid(filamentaded_track ~ experiment_id) +
+  theme_bw() +
+  theme(
+    legend.position = "top"
+  ) +
+  labs(
+    x = "Cell life time",
+    y = "Length value",
+    color = "Length type"
+  )
+```
 
