@@ -47,7 +47,8 @@ lineages_df <- read_tsv(lineages_files, show_col_types = FALSE) %>%
 processed_lineages_df <- lineages_df %>% 
   mutate(
     gfp = log10(gfp),
-    ds_red = log10(ds_red)
+    ds_red = log10(ds_red),
+    across(contains("filamentaded_"),~factor(.x, c(FALSE, TRUE), c("Not filamentaded", "Filamentaded")))
   ) %>% 
   add_count(experiment_id, trap_id, track_id, time) %>% 
   filter(n == 1) %>% 
@@ -107,7 +108,7 @@ donout_df %>%
   coord_polar(theta = "y") +
   xlim(c(-1, 4)) +
   labs(
-    fill = "Filamentaded cell",
+    fill = "Cell status",
     caption = glue("Total: {format(donout_total, big.mark=',')} tracks")
   ) +
   theme_void() +
@@ -134,8 +135,8 @@ processed_lineages_df %>%
     ylab = "Count of cells"
   ) +
   labs(
-    color = "Filamentaded cell",
-    fill = "Filamentaded cell"
+    color = "Cell status",
+    fill = "Cell status"
   )
 ```
 
@@ -188,7 +189,7 @@ processed_lineages_df %>%
   labs(
     x = "Time (minutes)",
     y = "Percentage of cells",
-    fill = "Filamentaded cell"
+    fill = "Cell status"
   )
 ```
 
@@ -223,10 +224,10 @@ p_1 <- processed_lineages_df %>%
   theme_bw() +
   theme(legend.position = "top") +
   labs(
-    x = "Filamentaded cell",
+    x = "Cell status",
     y = "Initial length",
-    color = "Filamentaded cell",
-    fill = "Filamentaded cell"
+    color = "Cell status",
+    fill = "Cell status"
   ) +
   scale_y_continuous(limits = c(0, 100)) +
   coord_flip() +
@@ -261,10 +262,10 @@ p_2 <- processed_lineages_df %>%
   theme_bw() +
   theme(legend.position = "top") +
   labs(
-    x = "Filamentaded cell",
+    x = "Cell status",
     y = "Initial GFP",
-    color = "Filamentaded cell",
-    fill = "Filamentaded cell"
+    color = "Cell status",
+    fill = "Cell status"
   ) +
   coord_flip() +
   stat_compare_means(label.y = 2.5, label.x = 1.5)
@@ -306,7 +307,7 @@ processed_lineages_df %>%
   labs(
     x = "Time (minutes)",
     y = "Value",
-    color = "Filamentaded cell"
+    color = "Cell status"
   ) +
   theme_bw() +
   theme(legend.position = "top")
@@ -372,7 +373,7 @@ survival_probability_df %>%
   labs(
     x = "Initial GFP",
     y = "Survival probability",
-    color = "Filamentaded cell",
+    color = "Cell status",
     linetype = "Experiment"
   )
 ```
@@ -391,7 +392,7 @@ survival_probability_df %>%
   labs(
     x = "Initial GFP (log10)",
     y = "Percentage of cells",
-    fill = "Filamentaded cell"
+    fill = "Cell status"
   )
 ```
 
@@ -433,7 +434,7 @@ status_points_df %>%
   labs(
     x = "Cell life time",
     y = "Percentage of cells",
-    fill = "Filamentaded cell"
+    fill = "Cell status"
   )
 ```
 
