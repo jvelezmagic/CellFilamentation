@@ -51,8 +51,8 @@ processed_lineages_df <- lineages_df %>%
     ds_red = log10(ds_red),
     across(contains("filamented_"), ~ factor(
       .x,
-      levels = c(TRUE, FALSE),
-      labels = c("Filamented", "Not filamented")
+      levels = c(FALSE, TRUE),
+      labels = c("Not filamented", "Filamented")
     ))
   ) %>%
   add_count(experiment_id, trap_id, track_id, time) %>%
@@ -149,7 +149,8 @@ cell_status_data %>%
     x = "Experiment",
     y = "Percentage of cells", 
     fill = "Cell status"
-  )
+  ) +
+  scale_fill_hue(direction = -1, h.start = 90)
 ```
 
 
@@ -174,7 +175,8 @@ cell_status_data %>%
     x = "Cell life time",
     y = "Percentage of cells",
     fill = "Cell status"
-  )
+  ) +
+  scale_fill_hue(direction = -1, h.start = 90)
 ```
 
 ```{r}
@@ -209,7 +211,8 @@ cell_status_data %>%
     y = "Length value",
     color = "Length type",
     shape = "Cell status"
-  )
+  ) +
+  scale_color_hue(direction = -1, h.start = 90)
 ```
 
 ```{r}
@@ -244,7 +247,8 @@ cell_status_data %>%
     y = "GFP value",
     color = "GFP type",
     shape = "Cell status"
-  )
+  ) +
+  scale_fill_hue(direction = -1, h.start = 90)
 ```
 
 ## All data
@@ -351,7 +355,7 @@ cells_pred
 cells_pred %>%
   separate(status, c("is_filamented", "status"), sep = "\\.") %>%
   mutate(
-    is_filamented = factor(is_filamented, levels = c("Not filamented", "filamented")),
+    is_filamented = factor(is_filamented, levels = c("Not filamented", "Filamented")),
     status = factor(status, levels = c("Dead", "Alive"))
   ) %>%
   ggplot(aes(x = end_length, y = initial_gfp)) +
@@ -361,7 +365,7 @@ cells_pred %>%
     alpha = 0.9,
     bins = 20
   ) +
-  facet_grid(experiment_id ~ status) +
+  facet_grid(experiment_id ~ is_filamented) +
   scale_fill_gradient(labels = scales::percent) +
   labs(
     x = "End length",
@@ -374,9 +378,10 @@ cells_pred %>%
 cells_pred %>%
   separate(status, c("is_filamented", "status"), sep = "\\.") %>%
   mutate(
-    is_filamented = factor(is_filamented, levels = c("Not filamented", "filamented")),
+    is_filamented = factor(is_filamented, levels = c("Not filamented", "Filamented")),
     status = factor(status, levels = c("Dead", "Alive"))
   ) %>%
+  #pull(is_filamented)
   ggplot(aes(x = end_length, y = initial_gfp)) +
   geom_hex(aes(fill = status), alpha = 1 / 3, bins = 20) +
   facet_grid(experiment_id ~ is_filamented) +
