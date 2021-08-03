@@ -1,0 +1,107 @@
+---
+title: "0.1 - Tracks preprocessing"
+author: "Jesús Vélez Santiago"
+date: "`r format(Sys.Date(), '%Y-%m')`"
+output: 
+  html_document:
+    theme: readable
+    highlight: kate
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  fig.align = "center",
+  fig.retina = 2
+)
+```
+
+## Libraries
+
+```{r libraries, message=FALSE}
+library(tidyverse)
+library(here)
+```
+
+## Load data
+
+```{r load_data}
+lineages_files <- here("data", "processed", "lineages.tsv")
+lineages_df <- read_tsv(lineages_files, show_col_types = FALSE) %>%
+  glimpse()
+```
+
+## Tracks preprocessing
+
+```{r tracks_preprocessing}
+tracks_summary_df <- lineages_df %>% 
+  add_count(experiment_id, trap_id, track_id, centered_frame) %>% 
+  filter(n == 1) %>% 
+  select(-n) %>% 
+  group_by(experiment_id, trap_id, track_id, filamented_track) %>% 
+  summarize(
+    # Create temporal variables.
+    initial_frame = first(centered_frame),
+    end_frame = last(centered_frame),
+    lived_frame = end_frame - initial_frame,
+    centered_antibiotic_start_frame = first(centered_antibiotic_start_frame),
+    centered_antibiotic_end_frame = first(centered_antibiotic_end_frame),
+    # Temporal status variables.
+    filamented_track = first(filamented_track),
+    sos_at_frame = ifelse(filamented_track, which.max(filamented_at_frame), NA),
+    dead_at_frame = ifelse(end_frame + 1 > 24, NA, end_frame + 1),
+    exists_before_experiment = initial_frame < centered_antibiotic_start_frame,
+    exists_before_or_during_experiment = initial_frame <= centered_antibiotic_end_frame,
+    exists_after_experiment = end_frame > centered_antibiotic_end_frame,
+    survived_strict = exists_before_experiment && exists_after_experiment,
+    survived_soft = exists_before_or_during_experiment && exists_after_experiment,
+    # Variable values.
+    across(
+      .cols = c(length, gfp, ds_red),
+      .fns = first,
+      .names = "initial_{.col}"
+    ),
+    across(
+      .cols = c(length, gfp, ds_red),
+      .fns = last,
+      .names = "end_{.col}"
+    ),
+    across(
+      .cols = c(length, gfp, ds_red),
+      .fns = ~ifelse(!is.na(sos_at_frame), nth(.x, n = sos_at_frame), NA),
+      .names = "sos_{.col}"
+    ),
+    # Division data
+    divided = any(division),
+    n_divisons = sum(division),
+    frame_since_last_divison_to_experiment_start = ifelse(
+      test = divided,
+      yes = keep(centered_frame, division) %>% 
+        keep(~.x < centered_antibiotic_start_frame) %>% 
+        {
+          .data <- is_empty(.)
+          ifelse(.data, NA, centered_antibiotic_start_frame - max(.))
+        },
+      no = NA
+    ),
+    .groups = "drop"
+  ) %>% 
+  rename_with(~str_replace(.x, "frame", "time"), contains("frame")) %>% 
+  mutate(across(contains("time"), ~.x * 10)) %>% 
+  relocate(where(is.character), where(is.factor), where(is.logical), where(is.numeric)) %>% 
+  glimpse() %>% 
+  identity()
+```
+
+## Save data
+
+```{r save_tracks_summary}
+tracks_summary_df %>% 
+  write_tsv(file = here("data", "processed", "tracks_summary.tsv"))
+```
