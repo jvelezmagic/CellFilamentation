@@ -821,3 +821,38 @@ processed_lineages_df %>%
   scale_fill_hue(direction = -1, h.start = 90) +
   NULL
 ```
+
+```{r}
+processed_lineages_df %>% 
+  left_join(survived_cells_df, by = c("experiment_id", "trap_id", "track_id", "filamented_track")) %>%
+  mutate(division = ifelse(division, TRUE, FALSE)) %>% 
+  filter(centered_frame <= centered_antibiotic_start_frame) %>% 
+  group_by(experiment_id, trap_id, track_id, filamented_track, survived_strict) %>% 
+  summarize(
+    # Status
+    divided = !all(division == FALSE),
+    not_previous_filamented = !any(filamented_at_frame == "Filamented"),
+    # Time
+    last_division_frame = max((centered_frame + 1) * division) - 1,
+    frames_since_last_division_to_experiment = first(centered_antibiotic_start_frame) - last_division_frame,
+    .groups = "drop"
+  ) %>% 
+  filter(divided, not_previous_filamented) %>% 
+  mutate(
+    time_since_last_division_to_experiment = factor(frames_since_last_division_to_experiment * 10),
+    survived_strict = factor(survived_strict, labels = c("Not survived", "Survived"))
+  ) %>% 
+  count(experiment_id, filamented_track, survived_strict, time_since_last_division_to_experiment) %>% 
+  identity() %>% 
+  ggplot(aes(x = time_since_last_division_to_experiment, y = n, fill = survived_strict)) +
+  geom_bar(position = "fill", stat = "identity", color = "white") +
+  facet_grid(experiment_id ~ filamented_track, scales = "free_y") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "Minutes difference between the start of the antibiotic entry and the last division",
+    y = "Percentage of cell",
+    fill = "Cell status"
+  ) +
+  scale_fill_hue(direction = -1, h.start = 90) +
+  NULL
+```
