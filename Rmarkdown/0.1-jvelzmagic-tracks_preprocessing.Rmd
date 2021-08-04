@@ -99,7 +99,7 @@ tracks_summary_df <- lineages_df %>%
 
 ## Save data
 
-```{r save_tracks_summary, eval=FALSE}
+```{r save_tracks_summary}
 tracks_summary_df %>% 
   write_tsv(file = here("data", "processed", "tracks_summary.tsv"))
 ```
