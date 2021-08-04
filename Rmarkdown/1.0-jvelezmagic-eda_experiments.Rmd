@@ -35,18 +35,46 @@ library(glue)
 
 ## Load Data
 
-```{r load_data}
-lineages_files <- here("data", "processed", "lineages.tsv")
-lineages_df <- read_tsv(lineages_files, show_col_types = FALSE) %>% 
+### Processed lineages
+
+```{r load_processed_lineages}
+processed_lineages_file <- here("data", "processed", "lineages.tsv")
+processed_lineages_df <- read_tsv(processed_lineages_file, show_col_types = FALSE) %>% 
+  mutate(across(contains("id"), as.character)) %>% 
+  glimpse()
+```
+
+### Processed tracks
+
+```{r load_processed_track}
+tracks_summary_file <- here("data", "processed", "tracks_summary.tsv")
+tracks_summary_df <- read_tsv(tracks_summary_file, show_col_types = FALSE) %>% 
+  mutate(
+    across(contains("id"), as.character),
+    across(contains("filamented_"), ~factor(
+        .x,
+        levels = c(FALSE, TRUE),
+        labels = c("Not filamented", "Filamented")
+      )
+    ),
+    across(contains("survived_"), ~factor(
+        .x,
+        levels = c(FALSE, TRUE),
+        labels = c("Not survived", "Survived")
+      )
+    ),
+    cell_status = paste0(filamented_track, " - ", survived_strict) %>% 
+      factor()
+  ) %>%
+  select(experiment_id, id, cell_status, filamented_track, contains("survived")) %>% 
   glimpse()
 ```
 
 ## Minimal preprocessing
 
 ```{r minimal_preprocessing}
-processed_lineages_df <- lineages_df %>% 
+processed_lineages_df_2 <- processed_lineages_df %>% 
   mutate(
-    gfp = log10(gfp),
     across(contains("filamented_"), ~factor(
         .x,
         levels = c(FALSE, TRUE),
@@ -54,15 +82,16 @@ processed_lineages_df <- lineages_df %>%
       )
     )
   ) %>% 
-  add_count(experiment_id, trap_id, track_id, time) %>% 
-  filter(n == 1) %>% 
-  select(-n) %>% 
-  mutate(
-    ds_red = cur_data() %>%
-      group_by(experiment_id) %>% 
-      summarize(ds_red = ds_red / max(ds_red), .groups = "drop") %>% 
-      pull(ds_red)
-  ) %>% 
+  inner_join(tracks_summary_df, by = c("experiment_id", "id", "filamented_track")) %>% 
+  select(
+    experiment_id, id,
+    cell_status,
+    filamented_track, filamented_at_frame,
+    time,
+    contains("survived"),
+    gfp, ds_red, length
+  ) %>%
+  relocate(where(is.character), where(is.factor)) %>% 
   glimpse()
 ```
 
@@ -79,64 +108,58 @@ theme_set(
 
 ### Samples distribution
 
-```{r donout_chart}
-donout_df <- processed_lineages_df %>% 
-  count(experiment_id, filamented_track) %>% 
-  arrange(filamented_track) %>% 
+```{r}
+tracks_summary_df %>% 
+  count(experiment_id, cell_status) %>%
+  group_by(experiment_id) %>% 
   mutate(
-    experiment_id = case_when(
-      experiment_id == "Chromosome" ~ "C",
-      TRUE ~ "P"
-    ),
     percentage = n / sum(n) * 100,
     ymax = cumsum(percentage),
     ymin = c(0, head(ymax, -1)),
-    label = glue("{experiment_id}: {format(percentage, digits=2)}%"),
-    label_position = (ymax + ymin) / 2
-  )
-
-donout_total <- donout_df %>% 
-  pull(n) %>% 
-  sum()
-  
-donout_df %>% 
+    labels = paste0(format(percentage, digits = 2), "%"),
+    labels_position = (ymax + ymin) / 2,
+    total_label = paste0("Total:\n", format(sum(n), big.mark = ","), " cells")
+  ) %>% 
+  ungroup() %>% 
+  glimpse() %>% 
+  identity() %>% 
   ggplot(
     aes(
-      ymax=ymax,
-      ymin=ymin,
-      xmax=4,
-      xmin=3
-    ),
+      ymin = ymin,
+      ymax = ymax,
+      xmin = 3,
+      xmax = 4
+    )
   ) +
   geom_rect(
     size = 1.5,
     color = "white",
-    aes(
-      fill=filamented_track,
-      group=experiment_id
-      )
+    aes(fill = cell_status)
   ) +
-  geom_label(x = 2, aes(y = label_position, label = label), size=3.5) +
+  geom_label(
+    x = 2,
+    aes(
+      y = labels_position,
+      label = labels
+    ),
+    size = 3.5
+  ) +
+  geom_text(aes(x = -Inf, y = -Inf, label = total_label), hjust = 0.5, vjust = 0.5) +
+  facet_grid(. ~ experiment_id) +
   coord_polar(theta = "y") +
   xlim(c(-1, 4)) +
-  annotate(
-    geom = "text",
-    x = -0.5, y = 0.5,
-    label = glue("Total:\n{format(donout_total, big.mark=',')} tracks"),
-    fontface = 2,
-    size = 5
-  ) +
-  labs(
-    fill = "Cell status"
+  guides(
+    fill = guide_legend(ncol = 2)
   ) +
   theme_void() +
   theme(
     legend.position = "top"
   ) +
-  scale_fill_hue(direction = -1, h.start = 90)
+  labs(
+    fill = "Cell status"
+  ) +
+  NULL
 ```
-
-
 ### GFP distribution
 ```{r gfp_distribution}
 processed_lineages_df %>% 
@@ -287,6 +310,7 @@ p_2 <- processed_lineages_df %>%
   ) +
   ggdist::geom_dots(side = "bottom", alpha = 1/10) +
   facet_wrap(experiment_id ~ .) +
+  
   theme_bw() +
   theme(legend.position = "top") +
   labs(
