@@ -142,6 +142,7 @@ tracks_summary_df %>%
       y = labels_position,
       label = labels
     ),
+    label.size = NA,
     size = 3.5
   ) +
   geom_text(aes(x = -Inf, y = -Inf, label = total_label), hjust = 0.5, vjust = 0.5) +
