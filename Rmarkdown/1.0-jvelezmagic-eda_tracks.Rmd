@@ -1,0 +1,192 @@
+---
+title: "1.0 - EDA of tracks"
+author: "Jesús Vélez Santiago"
+date: "`r format(Sys.Date(), '%Y-%m')`"
+output: 
+  html_document:
+    theme: readable
+    highlight: kate
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  fig.align = "center",
+  fig.retina = 2
+)
+```
+
+## Libraries
+
+```{r libraries, message=FALSE}
+library(tidyverse)
+library(here)
+```
+
+## Load data
+
+```{r load_data}
+tracks_file <- here("data", "processed", "tracks_summary.tsv")
+tracks_df <- read_tsv(tracks_file, show_col_types = FALSE) %>%
+  glimpse()
+```
+
+## EDA
+
+### Set defaults for plots
+
+```{r plot_defaults}
+theme_set(
+  theme_bw() +
+  theme(
+    legend.position = "top"
+  )
+)
+```
+
+### Dataset proportions
+
+```{r}
+tracks_df %>% 
+  mutate(
+    filamented_track = factor(filamented_track, labels = c("Not filamented", "Filamented")),
+    survived_strict = factor(survived_strict, labels = c("Not survived", "Survived"))
+  ) %>% 
+  ggplot(aes(x = experiment_id, fill = survived_strict)) +
+  geom_bar(position = "fill", stat = "count", color = "white") +
+  geom_text(
+    aes(label = after_stat(count)),
+    stat = "count",
+    position = "fill",
+    #color = "", 
+    vjust = -.1
+  ) +
+  facet_grid(. ~ filamented_track) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "Experiment",
+    y = "Percentage of cells",
+    fill = "Cell status"
+  ) +
+  NULL
+```
+
+### D
+
+```{r}
+tracks_df %>% 
+  filter(initial_time != end_time, filamented_track) %>% 
+  group_by(experiment_id, trap_id, track_id) %>% 
+  summarise(
+    lived_times = seq(initial_time, 240, 10),
+    status = case_when(
+      lived_times < sos_at_time ~ "Normal",
+      lived_time >= sos_at_time && lived_time < dead_at_time ~ "Stressed",
+      TRUE ~ "Dead"
+    ),
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    lived_times = factor(lived_times),
+    status = factor(status, levels = c("Normal", "Stressed", "Dead"), labels = c("Normal", "Stressed", "Dead"))
+  ) %>% 
+  identity() %>% 
+  ggplot(aes(x = lived_times, fill = status)) +
+  geom_bar(position = "fill", stat = "count", width = 1) +
+  facet_grid(experiment_id ~ .) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
+  scale_fill_hue(direction = -1, h.start = 90) +
+  theme(
+    panel.spacing.y = unit(1, "lines")
+  ) +
+  labs(
+    x = "Minutes",
+    y = "Percentage of cells",
+    fill = "Cell status"
+  ) +
+  NULL
+```
+
+```{r}
+tracks_df %>% 
+  filter(initial_time != end_time) %>% 
+  mutate(
+    sos_at_time = replace_na(sos_at_time, Inf),
+    dead_at_time = replace_na(dead_at_time, Inf)
+  ) %>% 
+  group_by(experiment_id, trap_id, track_id) %>% 
+  summarise(
+    lived_times = seq(initial_time, 240, 10),
+    status = case_when(
+      lived_times < sos_at_time ~ "Normal",
+      lived_time >= sos_at_time && lived_time < dead_at_time ~ "Stressed",
+      TRUE ~ "Dead"
+    ),
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    lived_times = factor(lived_times),
+    status = factor(status, levels = c("Normal", "Stressed", "Dead"), labels = c("Normal", "Stressed", "Dead"))
+  ) %>% 
+  identity() %>% 
+  ggplot(aes(x = lived_times, fill = status)) +
+  geom_bar(position = "fill", stat = "count", width = 1) +
+  facet_grid(experiment_id ~ .) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
+  scale_fill_hue(direction = -1, h.start = 90) +
+  theme(
+    panel.spacing.y = unit(1, "lines")
+  ) +
+  labs(
+    x = "Minutes",
+    y = "Percentage of cells",
+    fill = "Cell status"
+  ) +
+  NULL
+```
+
+```{r}
+tracks_df %>% 
+  filter(initial_time != end_time, !filamented_track) %>% 
+  mutate(
+    sos_at_time = replace_na(sos_at_time, Inf),
+    dead_at_time = replace_na(dead_at_time, Inf)
+  ) %>% 
+  group_by(experiment_id, trap_id, track_id) %>% 
+  summarise(
+    lived_times = seq(initial_time, 240, 10),
+    status = case_when(
+      lived_times < dead_at_time ~ "Normal",
+      TRUE ~ "Dead"
+    ),
+    .groups = "drop"
+  ) %>% 
+  mutate(
+    lived_times = factor(lived_times),
+    status = factor(status, levels = c("Normal", "Stressed", "Dead"), labels = c("Normal", "Stressed", "Dead"))
+  ) %>% 
+  identity() %>% 
+  ggplot(aes(x = lived_times, fill = status)) +
+  geom_bar(position = "fill", stat = "count", width = 1) +
+  facet_grid(experiment_id ~ .) +
+  scale_x_discrete(expand = c(0, 0),  labels = ) +
+  scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
+  scale_fill_hue(direction = -1, h.start = 90) +
+  theme(
+    panel.spacing.y = unit(1, "lines")
+  ) +
+  labs(
+    x = "Minutes",
+    y = "Percentage of cells",
+    fill = "Cell status"
+  ) +
+  NULL
+```
