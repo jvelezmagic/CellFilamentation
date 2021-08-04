@@ -63,6 +63,7 @@ fluorescence_control <- lineages_df %>%
 processed_lineages_df <- lineages_df %>% 
   inner_join(fluorescence_control, by = "experiment_id") %>% 
   mutate(
+    division = ifelse(division, TRUE, FALSE),
     id = paste0(trap_id, "_", lineage_id, "_", track_id),
     gfp = log(gfp) / mean_gfp,
     ds_red = log(ds_red) / mean_ds_red

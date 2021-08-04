@@ -34,6 +34,7 @@ library(here)
 ```{r load_data}
 lineages_files <- here("data", "processed", "lineages.tsv")
 lineages_df <- read_tsv(lineages_files, show_col_types = FALSE) %>%
+  mutate(across(contains("id"), as.character)) %>% 
   glimpse()
 ```
 
@@ -41,10 +42,7 @@ lineages_df <- read_tsv(lineages_files, show_col_types = FALSE) %>%
 
 ```{r tracks_preprocessing}
 tracks_summary_df <- lineages_df %>% 
-  add_count(experiment_id, trap_id, track_id, centered_frame) %>% 
-  filter(n == 1) %>% 
-  select(-n) %>% 
-  group_by(experiment_id, trap_id, track_id, filamented_track) %>% 
+  group_by(experiment_id, id) %>% 
   summarize(
     # Create temporal variables.
     initial_frame = first(centered_frame),
@@ -82,26 +80,26 @@ tracks_summary_df <- lineages_df %>%
     n_divisons = sum(division),
     frame_since_last_divison_to_experiment_start = ifelse(
       test = divided,
-      yes = keep(centered_frame, division) %>% 
-        keep(~.x < centered_antibiotic_start_frame) %>% 
+      yes = keep(centered_frame, division) %>%
+        keep(~.x < centered_antibiotic_start_frame) %>%
         {
           .data <- is_empty(.)
           ifelse(.data, NA, centered_antibiotic_start_frame - max(.))
         },
       no = NA
     ),
-    .groups = "drop"
+     .groups = "drop"
   ) %>% 
-  rename_with(~str_replace(.x, "frame", "time"), contains("frame")) %>% 
-  mutate(across(contains("time"), ~.x * 10)) %>% 
-  relocate(where(is.character), where(is.factor), where(is.logical), where(is.numeric)) %>% 
+  rename_with(~str_replace(.x, "frame", "time"), contains("frame")) %>%
+  mutate(across(contains("time"), ~.x * 10)) %>%
+  relocate(where(is.character), where(is.factor), where(is.logical), where(is.numeric)) %>%
   glimpse() %>% 
   identity()
 ```
 
 ## Save data
 
-```{r save_tracks_summary}
+```{r save_tracks_summary, eval=FALSE}
 tracks_summary_df %>% 
   write_tsv(file = here("data", "processed", "tracks_summary.tsv"))
 ```
