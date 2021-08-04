@@ -162,26 +162,27 @@ tracks_summary_df %>%
 ```
 ### GFP distribution
 ```{r gfp_distribution}
-processed_lineages_df %>% 
-  group_by(experiment_id, trap_id, track_id, filamented_track) %>% 
+processed_lineages_df_2 %>% 
+  group_by(experiment_id, id, cell_status) %>% 
   summarize(mean_gfp = mean(gfp), .groups = "drop") %>%
-  gghistogram(
-    x = "mean_gfp",
-    facet.by = "experiment_id",
-    color = "filamented_track",
-    fill = "filamented_track",
-    alpha = 1/3,
-    add = "mean",
-    xlab = "GFP (log10)",
-    ylab = "Count of cells",
-    bins = 30
+  ggplot(aes(x = mean_gfp, color = cell_status, fill = cell_status)) +
+  geom_histogram(alpha = 1 / 3, bins = 30, position = "identity") +
+  facet_grid(experiment_id ~ .) +
+  guides(
+    fill = guide_legend(ncol = 2),
+    color = guide_legend(ncol = 2)
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "top"
   ) +
   labs(
+    x = "Normalized mean GFP (log10)",
+    y = "Number of cells",
     color = "Cell status",
     fill = "Cell status"
   ) +
-  scale_color_hue(direction = -1, h.start = 90) +
-  scale_fill_hue(direction = -1, h.start = 90)
+  NULL
 ```
 
 ### Status by time
