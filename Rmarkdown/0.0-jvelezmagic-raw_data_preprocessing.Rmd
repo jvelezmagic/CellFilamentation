@@ -1,0 +1,83 @@
+---
+title: "0.0 - Raw data preprocessing"
+author: "Jesús Vélez Santiago"
+date: "`r format(Sys.Date(), '%Y-%m')`"
+output: 
+  html_document:
+    theme: readable
+    highlight: kate
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  fig.align = "center",
+  fig.retina = 2
+)
+```
+
+## Libraries
+
+```{r libraries, message=FALSE}
+library(tidyverse)
+library(here)
+```
+
+## Load data
+
+```{r load_data}
+lineages_files <- here("data", "raw", "lineages.tsv")
+lineages_df <- read_tsv(lineages_files, show_col_types = FALSE) %>%
+  mutate(across(contains("id"), as.character)) %>% 
+  glimpse()
+```
+
+## Preprocessing
+
+### Create a flurescence control per experiment
+
+```{r fluoresecence_control}
+fluorescence_control <- lineages_df %>% 
+  filter(centered_frame < centered_antibiotic_start_frame) %>% 
+  mutate(
+    gfp = log(gfp),
+    ds_red = log(gfp)
+  ) %>%
+  group_by(experiment_id) %>% 
+  summarize(
+    mean_gfp = mean(gfp),
+    mean_ds_red = mean(ds_red)
+  ) %>% 
+  glimpse()
+```
+
+### Apply normalization
+
+```{r}
+processed_lineages_df <- lineages_df %>% 
+  inner_join(fluorescence_control, by = "experiment_id") %>% 
+  mutate(
+    id = paste0(trap_id, "_", lineage_id, "_", track_id),
+    gfp = log(gfp) / mean_gfp,
+    ds_red = log(ds_red) / mean_ds_red
+  ) %>% 
+  add_count(experiment_id, trap_id, lineage_id, track_id, centered_frame) %>% 
+  filter(n == 1) %>% 
+  relocate(where(is.character), where(is.logical), where(is.numeric)) %>% 
+  select(-n, -mean_gfp, -mean_ds_red) %>% 
+  glimpse() %>% 
+  identity()
+```
+
+## Save data
+
+```{r save_data}
+processed_lineages_df %>% 
+  write_tsv(here("data", "processed", "lineages.tsv"))
+```
