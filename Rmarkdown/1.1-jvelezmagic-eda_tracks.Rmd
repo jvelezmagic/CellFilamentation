@@ -62,7 +62,7 @@ tracks_summary_df <- read_tsv(tracks_summary_file, show_col_types = FALSE) %>%
       factor()
   ) %>%
   relocate(where(is.character), where(is.factor), where(is.logical)) %>% 
-  # filter(initial_time <= centered_antibiotic_start_time, end_time > centered_antibiotic_start_time) %>% 
+  filter(initial_time <= centered_antibiotic_start_time, end_time > centered_antibiotic_start_time) %>% 
   glimpse()
 ```
 
