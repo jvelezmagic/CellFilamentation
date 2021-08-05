@@ -9,7 +9,7 @@ output:
     toc: true
     toc_float: true
     toc_depth: 3
-    code_folding: show
+    code_folding: hide
     self_contained: true
 ---
 
@@ -17,6 +17,7 @@ output:
 knitr::opts_chunk$set(
   echo = TRUE,
   message = FALSE,
+  warning = FALSE,
   fig.align = "center",
   # dev = "svg",
   fig.retina = 2
@@ -66,7 +67,11 @@ tracks_summary_df <- read_tsv(tracks_summary_file, show_col_types = FALSE) %>%
     cell_status = paste0(filamented_track, " - ", survived_strict) %>% 
       factor()
   ) %>%
-  select(experiment_id, id, cell_status, filamented_track, contains("survived")) %>% 
+  select(
+    experiment_id, id,
+    cell_status, filamented_track,
+    contains("time"), contains("survived")
+  ) %>% 
   glimpse()
 ```
 
@@ -83,14 +88,6 @@ processed_lineages_df_2 <- processed_lineages_df %>%
     )
   ) %>% 
   inner_join(tracks_summary_df, by = c("experiment_id", "id", "filamented_track")) %>% 
-  select(
-    experiment_id, id,
-    cell_status,
-    filamented_track, filamented_at_frame,
-    time,
-    contains("survived"),
-    gfp, ds_red, length
-  ) %>%
   relocate(where(is.character), where(is.factor)) %>% 
   glimpse()
 ```
@@ -106,241 +103,115 @@ theme_set(
 )
 ```
 
-### Samples distribution
-
-```{r}
-tracks_summary_df %>% 
-  count(experiment_id, cell_status) %>%
-  group_by(experiment_id) %>% 
-  mutate(
-    percentage = n / sum(n) * 100,
-    ymax = cumsum(percentage),
-    ymin = c(0, head(ymax, -1)),
-    labels = paste0(format(percentage, digits = 2), "%"),
-    labels_position = (ymax + ymin) / 2,
-    total_label = paste0("Total:\n", format(sum(n), big.mark = ","), " cells")
-  ) %>% 
-  ungroup() %>% 
-  glimpse() %>% 
-  identity() %>% 
-  ggplot(
-    aes(
-      ymin = ymin,
-      ymax = ymax,
-      xmin = 3,
-      xmax = 4
-    )
-  ) +
-  geom_rect(
-    size = 1.5,
-    color = "white",
-    aes(fill = cell_status)
-  ) +
-  geom_label(
-    x = 2,
-    aes(
-      y = labels_position,
-      label = labels
-    ),
-    label.size = NA,
-    size = 3.5
-  ) +
-  geom_text(aes(x = -Inf, y = -Inf, label = total_label), hjust = 0.5, vjust = 0.5) +
-  facet_grid(. ~ experiment_id) +
-  coord_polar(theta = "y") +
-  xlim(c(-1, 4)) +
-  guides(
-    fill = guide_legend(ncol = 2)
-  ) +
-  theme_void() +
-  theme(
-    legend.position = "top"
-  ) +
-  labs(
-    fill = "Cell status"
-  ) +
-  NULL
-```
-### GFP distribution
-```{r gfp_distribution}
-processed_lineages_df_2 %>% 
-  group_by(experiment_id, id, cell_status) %>% 
-  summarize(mean_gfp = mean(gfp), .groups = "drop") %>%
-  ggplot(aes(x = mean_gfp, y = ..count.. / sum(..count..), color = cell_status, fill = cell_status)) +
-  geom_histogram(alpha = 1 / 4, bins = 30, position = "identity") +
-  facet_grid(experiment_id ~ .) +
-  scale_y_continuous(labels = scales::percent) +
-  guides(
-    fill = guide_legend(ncol = 2),
-    color = guide_legend(ncol = 2)
-  ) +
-  theme_bw() +
-  theme(
-    legend.position = "top"
-  ) +
-  labs(
-    x = "Normalized mean GFP (log10)",
-    y = "Percentage of cells",
-    color = "Cell status",
-    fill = "Cell status"
-  ) +
-  NULL
-```
-
 ### Status by time
 
-```{r,area_chart}
-processed_lineages_df %>% 
-  count(experiment_id, filamented_at_frame, time) %>% 
-  group_by(experiment_id, time) %>% 
-  summarize(
-    filamented_at_frame = filamented_at_frame,
-    percentage = n / sum(n),
-    .groups = "drop"
+```{r}
+status_time_df <- processed_lineages_df_2 %>% 
+  select(experiment_id, id, time) %>% 
+  group_by(experiment_id) %>% 
+  group_modify(~complete(expand(.x, id, time))) %>% 
+  ungroup() %>% 
+  left_join(
+    y = processed_lineages_df_2 %>% 
+      select(experiment_id, id, time, filamented_at_frame, initial_time, end_time),
+    by = c("experiment_id", "id", "time")
   ) %>% 
-  ggplot(aes(x = time, y = percentage, fill = filamented_at_frame)) +
-  geom_area(size = 0.5, alpha = 1/1) +
-  geom_vline(xintercept = c(60, 140), linetype = "dashed") +
-  geom_text(
-    data = data.frame(
-      x = 73,
-      y = 0.8,
-      label = "Start",
-      experiment_id = "Plasmid"
-    ),
-    mapping = aes(x = x, y = y, label = label),
-    size = 5.64,
-    colour = "white",
-    fontface = 2,
-    inherit.aes = FALSE
-  ) +
-  geom_text(
-    data = data.frame(
-      x = 151,
-      y = 0.8,
-      label = "End",
-      experiment_id = "Plasmid"
-    ),
-    mapping = aes(x = x, y = y, label = label),
-    size = 5.64,
-    colour = "white",
-    fontface = 2,
-    inherit.aes = FALSE
-  ) +
+  rename(cell_status_at_frame = filamented_at_frame) %>% 
+  fill(initial_time, end_time, .direction = "up") %>% 
+  filter(time >= initial_time) %>% 
+  mutate(
+    cell_status_at_frame = as.character(cell_status_at_frame),
+    cell_status_at_frame = replace_na(cell_status_at_frame, "Dead"),
+    cell_status_at_frame = factor(cell_status_at_frame, levels = c("Not filamented", "Filamented", "Dead")),
+    time = factor(time)
+  ) %>% 
+  identity()
+```
+
+#### With dead
+
+```{r}
+status_time_df %>% 
+  ggplot(aes(x = time, fill = cell_status_at_frame)) +
+  geom_bar(position = "fill", stat = "count", width = 1) +
+  geom_vline(xintercept = c("60", "140"), linetype = "dashed") +
   facet_grid(experiment_id ~ .) +
-  scale_x_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
-  theme_bw() +
   theme(
-    legend.position = "top",
     panel.spacing.y = unit(1, "lines")
+  ) +
+  geom_text(
+    data = data.frame(
+      x = c(7.5, 15.5),
+      y = c(0.75, 0.25),
+      label = c("Start", "End"),
+      experiment_id = "Plasmid"
+    ),
+    mapping = aes(x = x, y = y, label = label),
+    size = 6,
+    hjust = 0L,
+    vjust = 0L,
+    colour = "white",
+    inherit.aes = FALSE
   ) +
   labs(
     x = "Time (minutes)",
     y = "Percentage of cells",
     fill = "Cell status"
   ) +
-  scale_color_hue(direction = -1, h.start = 90) +
-  scale_fill_hue(direction = -1, h.start = 90)
+  guides(
+    color = guide_legend(ncol = 2),
+    fill = guide_legend(ncol = 2)
+  ) +
+  NULL
 ```
-### Differences between groups
 
-```{r rain_plot}
-library(ggdist)
+#### Without dead
 
-p_1 <- processed_lineages_df %>% 
-  filter(time == 0) %>% 
-  ggplot(
-    aes(
-      x = filamented_track,
-      y = length,
-      group = filamented_track,
-      fill = filamented_track,
-      color = filamented_track
-    )
+```{r}
+status_time_df %>% 
+  filter(cell_status_at_frame != "Dead") %>% 
+  ggplot(aes(x = time, fill = cell_status_at_frame)) +
+  geom_bar(position = "fill", stat = "count", width = 1) +
+  geom_vline(xintercept = c("60", "140"), linetype = "dashed") +
+  facet_grid(experiment_id ~ .) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
+  theme(
+    panel.spacing.y = unit(1, "lines")
   ) +
-  ggdist::stat_halfeye(
-    adjust = .5, 
-    width = .6, 
-    .width = 0, 
-    justification = -.2,
-    point_colour = NA
-  ) + 
-  geom_boxplot(
-    width = .15,
-    outlier.shape = NA,
-    alpha = 1/3
-  ) +
-  ggdist::geom_dots(side = "bottom", alpha = 1/10) +
-  facet_wrap(experiment_id ~ .) +
-  theme_bw() +
-  theme(legend.position = "top") +
-  labs(
-    x = "Cell status",
-    y = "Initial length",
-    color = "Cell status",
-    fill = "Cell status"
-  ) +
-  scale_y_continuous(limits = c(0, 100)) +
-  coord_flip() +
-  stat_compare_means(label.y = 60, label.x = 1.5) +
-  scale_color_hue(direction = -1, h.start = 90) +
-  scale_fill_hue(direction = -1, h.start = 90)
-
-p_2 <- processed_lineages_df %>% 
-  filter(time == 0) %>% 
-  ggplot(
-    aes(
-      x = filamented_track,
-      y = gfp,
-      group = filamented_track,
-      fill = filamented_track,
-      color = filamented_track
+  geom_text(
+    data = data.frame(
+      x = c(7.5, 15.5),
+      y = c(0.75, 0.75),
+      label = c("Start", "End"),
+      experiment_id = "Plasmid"
     ),
-    side = "bottom"
+    mapping = aes(x = x, y = y, label = label),
+    size = 6,
+    hjust = 0L,
+    vjust = 0L,
+    colour = "white",
+    inherit.aes = FALSE
   ) +
-  ggdist::stat_halfeye(
-    adjust = .5, 
-    width = .6, 
-    .width = 0, 
-    justification = -.2,
-    point_colour = NA
-  ) + 
-  geom_boxplot(
-    width = .15,
-    outlier.shape = NA,
-    alpha = 1/3
-  ) +
-  ggdist::geom_dots(side = "bottom", alpha = 1/10) +
-  facet_wrap(experiment_id ~ .) +
-  
-  theme_bw() +
-  theme(legend.position = "top") +
   labs(
-    x = "Cell status",
-    y = "Initial GFP (log10)",
-    color = "Cell status",
+    x = "Time (minutes)",
+    y = "Percentage of cells",
     fill = "Cell status"
   ) +
-  coord_flip() +
-  stat_compare_means(label.y = 2.5, label.x = 1.5) +
-  scale_color_hue(direction = -1, h.start = 90) +
-  scale_fill_hue(direction = -1, h.start = 90)
+  scale_fill_hue(direction = -1, h.start = 90) +
+  #scale_fill_manual(values = c("#619CFF", "#00BA38")) +
+  NULL
 ```
 
-```{r rain_cloud_2}
-library(patchwork)
-library(ggpubr)
-
-(p_1 / p_2) +
-  plot_layout(guides = 'collect')
-```
+### Differences between groups
 
 ### Metrics distributions
 
-```{r metric_charts}
-processed_lineages_df %>% 
-  select(experiment_id, filamented_track, time, length, gfp, ds_red) %>% 
+```{r metric_charts, warning=FALSE, message=FALSE}
+processed_lineages_df_2 %>% 
+  select(experiment_id, cell_status, time, length, gfp, ds_red) %>% 
   pivot_longer(
     cols = c(length, gfp, ds_red),
     names_to = "metric"
@@ -352,13 +223,13 @@ processed_lineages_df %>%
       metric == "length" ~ "Length"
     )
   ) %>% 
-  group_by(experiment_id, filamented_track, time, metric) %>%
+  group_by(experiment_id, cell_status, time, metric) %>%
   summarise(
     ci = list(mean_cl_normal(value)),
     .groups = "drop"
   ) %>% 
   unnest(cols = c(ci)) %>% 
-  ggplot(aes(x = time, y = y, ymin= ymin, ymax=ymax, color = filamented_track)) +
+  ggplot(aes(x = time, y = y, ymin= ymin, ymax=ymax, color = cell_status)) +
   annotate("rect", xmin=60, xmax=140, ymin=-Inf, ymax=Inf, alpha=1/2, color = "transparent", fill = "#FCB565") +
   geom_smooth(method = "loess") +
   facet_grid(metric ~ experiment_id, scales = "free_y") +
@@ -369,6 +240,10 @@ processed_lineages_df %>%
   ) +
   theme_bw() +
   theme(legend.position = "top") +
+  guides(
+    color = guide_legend(ncol = 2),
+    fill = guide_legend(ncol = 2)
+  ) +
   scale_color_hue(direction = -1, h.start = 90) +
   scale_fill_hue(direction = -1, h.start = 90)
 ```
@@ -378,21 +253,30 @@ processed_lineages_df %>%
 #### Calculation
 
 ```{r survival_probability}
-gfp_control_hist <- processed_lineages_df %>% 
+gfp_control_hist <- processed_lineages_df_2 %>% 
   ggplot(aes(x = gfp)) +
-  geom_histogram(bins = 100)
-
+  geom_histogram(bins = 100) +
+  facet_grid(experiment_id ~ .)
+  
 gfp_hist_data <- gfp_control_hist %>% 
   ggplot_build() %>% 
   pluck("data", 1) %>% 
-  select(count, x, xmin, xmax) %>% 
+  select(PANEL, count, x, xmin, xmax) %>% 
+  mutate(experiment_id = case_when(
+    PANEL == 1 ~ "Chromosome",
+    PANEL == 2 ~ "Plasmid"
+  )) %>% 
   as_tibble()
 
 gfp_breaks <- gfp_hist_data %>% 
-  {c(.$xmin, last(.$xmax))}
+  group_by(experiment_id) %>% 
+  summarise(
+    breaks = unique(c(.$xmin, last(.$xmax))),
+    .groups = "drop"
+  )
 
-survival_probability_df <- processed_lineages_df %>%
-  group_by(experiment_id, lineage_id, trap_id, filamented_track) %>% 
+gfp_survival_probability_df <- processed_lineages_df_2 %>%
+  group_by(experiment_id, id, filamented_track) %>% 
   summarise(
     initial_gfp = first(gfp),
     is_long_track = first(centered_frame) < unique(centered_antibiotic_start_frame) &&
@@ -402,35 +286,53 @@ survival_probability_df <- processed_lineages_df %>%
   filter(is_long_track) %>%
   group_by(experiment_id, filamented_track) %>% 
   group_modify(~{
+    
+    current_data <- .x
+    current_experiment <- current_data %>%
+      pull(experiment_id) %>% 
+      unique()
+    
+    current_control_gfp <- gfp_hist_data %>% 
+      filter(experiment_id == current_experiment) %>% 
+      pull(count)
+    
+    current_breaks <- gfp_breaks %>% 
+      filter(experiment_id == current_experiment) %>% 
+      pull(breaks)
+    
     tibble(
       plot = list(
-        ggplot(data = .x, aes(x = initial_gfp)) +
-        geom_histogram(breaks = gfp_breaks)
+        ggplot(data = current_data, aes(x = initial_gfp)) +
+        geom_histogram(
+          breaks = current_breaks
+        )
       )
-    )
-  }) %>% 
-  mutate(
-    counts = map(plot, ggplot_build),
-    counts = map(counts, pluck, "data", 1),
-    counts = map(counts, add_column, control_count = gfp_hist_data$count),
-    counts = map(counts, select, gfp = x, control_count, count)
-  ) %>% 
+    ) %>%
+      mutate(
+        counts = map(plot, ggplot_build),
+        counts = map(counts, pluck, "data", 1),
+        counts = map(counts, add_column, control_count = current_control_gfp),
+        counts = map(counts, select, gfp = x, control_count, count)
+      ) %>% 
+      select(-plot)
+  }, .keep = TRUE) %>%
   unnest(counts) %>% 
   mutate(
     survival_probability = count / control_count,
     #survival_probability = survival_probability / max(survival_probability, na.rm = TRUE)
-  ) %>% 
-  filter(survival_probability != 0) %>% 
-  glimpse()
+  ) %>%
+  #filter(survival_probability != 0) %>%
+  glimpse() %>%
+  identity()
 ```
 
 #### Points
 
 ```{r survival_probability_plot}
-survival_probability_df %>% 
-  ggplot(aes(x = gfp, y = survival_probability, color = filamented_track, linetype = experiment_id)) +
+gfp_survival_probability_df %>% 
+  ggplot(aes(x = gfp, y = survival_probability, color = filamented_track)) +
   geom_point() +
-  geom_line() +
+  geom_rug(alpha = 1 / 2) +
   scale_y_continuous(labels = scales::percent) +
   #facet_grid(. ~ experiment_id) +
   theme_bw() +
@@ -444,53 +346,41 @@ survival_probability_df %>%
     linetype = "Experiment"
   ) +
   scale_color_hue(direction = -1, h.start = 90) +
-  scale_fill_hue(direction = -1, h.start = 90)
-```
-##### Area
-
-
-```{r survival_probability_plot_area}
-survival_probability_df %>% 
-  group_by(filamented_track, gfp) %>% 
-  ggplot(aes(x = gfp, y = count, fill = filamented_track, color = filamented_track)) +
-  geom_bar(position = "fill", stat="identity") +
-  scale_x_continuous(expand = c(0, 0)) +
-  scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
-  #facet_grid(. ~ experiment_id) +
-  theme_bw() +
-  theme(
-    legend.position = "top"
-  ) +
-  labs(
-    x = "Initial GFP (log10)",
-    y = "Percentage of cells",
-    fill = "Cell status",
-    color = "Cell status"
-  ) +
-  scale_color_hue(direction = -1, h.start = 90) +
-  scale_fill_hue(direction = -1, h.start = 90)
+  scale_fill_hue(direction = -1, h.start = 90) +
+  facet_grid(. ~ experiment_id) +
+  coord_cartesian(ylim = c(c(0, 0.04))) +
+  NULL
 ```
 
 ### Length Survival probability
 
 #### Calculation
 
-```{r length_survival_probability}
-length_control_hist <- processed_lineages_df %>% 
+```{r}
+length_control_hist <- processed_lineages_df_2 %>% 
   ggplot(aes(x = length)) +
-  geom_histogram(bins = 100)
-
+  geom_histogram(bins = 100) +
+  facet_grid(experiment_id ~ .)
+  
 length_hist_data <- length_control_hist %>% 
   ggplot_build() %>% 
   pluck("data", 1) %>% 
-  select(count, x, xmin, xmax) %>% 
+  select(PANEL, count, x, xmin, xmax) %>% 
+  mutate(experiment_id = case_when(
+    PANEL == 1 ~ "Chromosome",
+    PANEL == 2 ~ "Plasmid"
+  )) %>% 
   as_tibble()
 
 length_breaks <- length_hist_data %>% 
-  {c(.$xmin, last(.$xmax))}
+  group_by(experiment_id) %>% 
+  summarise(
+    breaks = unique(c(.$xmin, last(.$xmax))),
+    .groups = "drop"
+  )
 
-survival_probability_df <- processed_lineages_df %>%
-  group_by(experiment_id, lineage_id, trap_id, filamented_track) %>% 
+length_survival_probability_df <- processed_lineages_df_2 %>%
+  group_by(experiment_id, id, filamented_track) %>% 
   summarise(
     initial_length = first(length),
     is_long_track = first(centered_frame) < unique(centered_antibiotic_start_frame) &&
@@ -500,36 +390,55 @@ survival_probability_df <- processed_lineages_df %>%
   filter(is_long_track) %>%
   group_by(experiment_id, filamented_track) %>% 
   group_modify(~{
+    
+    current_data <- .x
+    current_experiment <- current_data %>%
+      pull(experiment_id) %>% 
+      unique()
+    
+    current_control_length <- length_hist_data %>% 
+      filter(experiment_id == current_experiment) %>% 
+      pull(count)
+    
+    current_breaks <- length_breaks %>% 
+      filter(experiment_id == current_experiment) %>% 
+      pull(breaks)
+    
     tibble(
       plot = list(
-        ggplot(data = .x, aes(x = initial_length)) +
-        geom_histogram(breaks = length_breaks)
+        ggplot(data = current_data, aes(x = initial_length)) +
+        geom_histogram(
+          breaks = current_breaks
+        )
       )
-    )
-  }) %>% 
-  mutate(
-    counts = map(plot, ggplot_build),
-    counts = map(counts, pluck, "data", 1),
-    counts = map(counts, add_column, control_count = length_hist_data$count),
-    counts = map(counts, select, length = x, control_count, count)
-  ) %>% 
+    ) %>%
+      mutate(
+        counts = map(plot, ggplot_build),
+        counts = map(counts, pluck, "data", 1),
+        counts = map(counts, add_column, control_count = current_control_length),
+        counts = map(counts, select, length = x, control_count, count)
+      ) %>% 
+      select(-plot)
+  }, .keep = TRUE) %>%
   unnest(counts) %>% 
   mutate(
     survival_probability = count / control_count,
     #survival_probability = survival_probability / max(survival_probability, na.rm = TRUE)
-  ) %>% 
-  filter(survival_probability != 0) %>% 
-  glimpse()
+  ) %>%
+  #filter(survival_probability != 0) %>%
+  glimpse() %>%
+  identity()
 ```
+
 
 #### Points
 
 ```{r length_survival_probability_plot}
-survival_probability_df %>% 
+length_survival_probability_df %>% 
   filter(survival_probability != 1) %>% 
-  ggplot(aes(x = length, y = survival_probability, color = filamented_track, linetype = experiment_id)) +
+  ggplot(aes(x = length, y = survival_probability, color = filamented_track)) +
   geom_point() +
-  geom_line() +
+  geom_rug(alpha = 1 / 2) +
   scale_y_continuous(labels = scales::percent) +
   facet_grid(. ~ experiment_id) +
   theme_bw() +
@@ -542,30 +451,7 @@ survival_probability_df %>%
     color = "Cell status",
     linetype = "Experiment"
   ) +
-  scale_color_hue(direction = -1, h.start = 90) +
-  scale_fill_hue(direction = -1, h.start = 90)
-```
-##### Area
-
-
-```{r length_survival_probability_plot_area}
-survival_probability_df %>% 
-  group_by(filamented_track, length) %>% 
-  ggplot(aes(x = length, y = count, fill = filamented_track, color = filamented_track)) +
-  geom_bar(position = "fill", stat="identity") +
-  scale_x_continuous(expand = c(0, 0)) +
-  scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
-  #facet_grid(. ~ experiment_id) +
-  theme_bw() +
-  theme(
-    legend.position = "top"
-  ) +
-  labs(
-    x = "Initial length",
-    y = "Percentage of cells",
-    fill = "Cell status",
-    color = "Cell status"
-  ) +
+  coord_cartesian(ylim = c(c(0, 0.03))) +
   scale_color_hue(direction = -1, h.start = 90) +
   scale_fill_hue(direction = -1, h.start = 90)
 ```
