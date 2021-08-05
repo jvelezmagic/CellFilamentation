@@ -32,6 +32,7 @@ library(tidytext)
 library(plotly)
 library(ggpubr)
 library(GGally)
+library(embed)
 library(here)
 ```
 
@@ -61,6 +62,7 @@ tracks_summary_df <- read_tsv(tracks_summary_file, show_col_types = FALSE) %>%
       factor()
   ) %>%
   relocate(where(is.character), where(is.factor), where(is.logical)) %>% 
+  # filter(initial_time <= centered_antibiotic_start_time, end_time > centered_antibiotic_start_time) %>% 
   glimpse()
 ```
 
@@ -315,6 +317,9 @@ tracks_summary_df %>%
     color = "Length type",
     shape = "Cell status"
   ) +
+  theme(
+    panel.spacing.x = unit(0.9, "lines"),
+  ) +
   NULL
 ```
 
@@ -347,6 +352,9 @@ tracks_summary_df %>%
     y = "Average length value",
     color = "Length type",
     shape = "Cell status"
+  ) +
+  theme(
+    panel.spacing.x = unit(0.9, "lines"),
   ) +
   NULL
 ```
@@ -410,7 +418,7 @@ tracks_summary_df %>%
 
 ```{r}
 experiment_datasets <- tracks_summary_df %>% 
-  select(experiment_id, survived_strict, contains("length"), contains("gfp")) %>% 
+  select(experiment_id, cell_status, contains("length"), contains("gfp"), -contains("sos"), -contains("end")) %>% 
   group_by(experiment_id) %>% 
   {
     grouped_data <- .
@@ -427,7 +435,7 @@ plasmid_df <- experiment_datasets$Plasmid
 #### Chromosome
 
 ```{r}
-c_pca_rec <- recipe(survived_strict ~ ., data = chromosome_df) %>% 
+c_pca_rec <- recipe(cell_status ~ ., data = chromosome_df) %>% 
   step_naomit(all_predictors()) %>% 
   step_normalize(all_predictors()) %>%
   step_pca(all_predictors())
@@ -448,36 +456,27 @@ c_tidied_pca %>%
   labs(y = NULL)
 ```
 
-```{r chromosome_pca_absolute_contributions}
-c_tidied_pca %>%
-  filter(component %in% paste0("PC", 1:4)) %>%
-  group_by(component) %>%
-  top_n(8, abs(value)) %>%
-  ungroup() %>%
-  mutate(terms = reorder_within(terms, abs(value), component)) %>%
-  identity() %>% 
-  ggplot(aes(abs(value), terms, fill = value > 0)) +
-  geom_col() +
-  facet_wrap(~component, scales = "free_y") +
-  scale_y_reordered() +
-  labs(
-    x = "Absolute value of contribution",
-    y = NULL, fill = "Positive?"
-  ) +
-  NULL
-```
-
-
 ```{r warning=FALSE}
 c_pca_prep %>% 
   juice() %>% 
-  plot_ly(x = ~PC1, y = ~PC2, z = ~PC3, color = ~survived_strict, opacity = 1/20)
+  ggplot(aes(x = PC1, y = PC2, color = cell_status)) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  geom_jitter(size = 0.7) +
+  guides(
+    color = guide_legend(ncol = 2, override.aes = list(alpha = 1)),
+    fill = guide_legend(ncol = 2)
+  ) +
+  labs(
+    color = "Cell status"
+  ) +
+  NULL
 ```
 
 #### Plasmid
 
 ```{r}
-p_pca_rec <- recipe(survived_strict ~ ., data = plasmid_df) %>% 
+p_pca_rec <- recipe(cell_status ~ ., data = plasmid_df) %>% 
   step_naomit(all_predictors()) %>% 
   step_normalize(all_predictors()) %>%
   step_pca(all_predictors())
@@ -489,8 +488,6 @@ p_pca_prep
 ```{r}
 p_tidied_pca <- tidy(p_pca_prep, 3)
 
-p_tidied_pca
-
 p_tidied_pca %>%
   filter(component %in% paste0("PC", 1:5)) %>%
   mutate(component = fct_inorder(component)) %>%
@@ -500,30 +497,80 @@ p_tidied_pca %>%
   labs(y = NULL)
 ```
 
-```{r pca_absolute_contributions}
-p_tidied_pca %>%
-  filter(component %in% paste0("PC", 1:4)) %>%
-  group_by(component) %>%
-  top_n(8, abs(value)) %>%
-  ungroup() %>%
-  mutate(terms = reorder_within(terms, abs(value), component)) %>%
-  identity() %>% 
-  ggplot(aes(abs(value), terms, fill = value > 0)) +
-  geom_col() +
-  facet_wrap(~component, scales = "free_y") +
-  scale_y_reordered() +
+```{r, warning=FALSE}
+p_pca_prep %>% 
+  juice() %>% 
+  ggplot(aes(x = PC1, y = PC2, color = cell_status)) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  geom_jitter(size = 0.1, alpha = 1/3) +
+  scale_x_continuous(limits = c(NA,  5)) +
+  scale_y_continuous(limits = c(NA, 7)) +
+  guides(
+    color = guide_legend(ncol = 2, override.aes = list(alpha = 1, size = 1)),
+    fill = guide_legend(ncol = 2)
+  ) +
   labs(
-    x = "Absolute value of contribution",
-    y = NULL, fill = "Positive?"
+    color = "Cell status"
   ) +
   NULL
 ```
 
-```{r, warning=FALSE}
-p_pca_prep %>% 
-  juice() %>% 
-  plot_ly(x = ~PC1, y = ~PC2, z = ~PC3, color = ~survived_strict, opacity = 1/20)
+### UMAP
+
+```{r}
+p_umap_rec <- recipe(cell_status ~ ., data = plasmid_df) %>% 
+  step_naomit(all_predictors()) %>% 
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors())
+
+p_umap_prep <- prep(p_umap_rec)
+p_umap_prep
 ```
+
+```{r}
+juice(p_umap_prep) %>%
+  ggplot(aes(umap_1, umap_2, label )) +
+  geom_point(aes(color = cell_status), alpha = 0.7, size = 2) +
+  labs(
+    x = "UMAP 1",
+    y = "UMAP 2",
+    color = "Cell status"
+  ) +
+  guides(
+    color = guide_legend(ncol = 2),
+    fill = guide_legend(ncol = 2)
+  ) +
+  NULL
+```
+
+#### Chromosome
+
+```{r}
+c_umap_rec <- recipe(cell_status ~ ., data = chromosome_df) %>% 
+  step_naomit(all_predictors()) %>% 
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors())
+
+c_umap_prep <- prep(c_umap_rec)
+c_umap_prep
+```
+
+```{r}
+juice(c_umap_prep) %>% 
+  ggplot(aes(umap_1, umap_2, label )) +
+  geom_point(aes(color = cell_status), alpha = 0.7, size = 2) +
+  guides(
+    color = guide_legend(ncol = 2),
+    fill = guide_legend(ncol = 2)
+  ) +
+  labs(
+    x = "UMAP 1",
+    y = "UMAP 2",
+    color = "Cell status"
+  )
+```
+
 
 ### Paired matrics
 
@@ -531,12 +578,12 @@ p_pca_prep %>%
 
 ```{r warning=FALSE}
 chromosome_df %>% 
-  select(survived_strict, where(is.numeric)) %>% 
+  select(cell_status, where(is.numeric)) %>% 
+  rename(`Initial GFP` = initial_gfp, `Initial length` = initial_length) %>% 
   ggpairs(
     data = .,
     columns = 2:ncol(.),
-    aes(color = survived_strict, alpha = 1/1000),
-    upper = list(continuous = "points")
+    aes(color = cell_status, alpha = 1/1000)
   )
 ```
 
@@ -544,11 +591,12 @@ chromosome_df %>%
 
 ```{r warning=FALSE}
 plasmid_df %>% 
-  select(survived_strict, where(is.numeric)) %>% 
+  select(cell_status, where(is.numeric)) %>% 
+  rename(`Initial GFP` = initial_gfp, `Initial length` = initial_length) %>% 
   ggpairs(
     data = .,
     columns = 2:ncol(.),
-    aes(color = survived_strict, alpha = 1/1000),
-    upper = list(continuous = "points")
+    aes(color = cell_status, alpha = 1/1000),
+    #upper = list(continuous = "points")
   )
 ```
