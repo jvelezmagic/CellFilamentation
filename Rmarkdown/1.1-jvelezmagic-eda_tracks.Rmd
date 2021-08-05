@@ -1,0 +1,554 @@
+---
+title: "1.0 - EDA tracks"
+author: "Jesús Vélez Santiago"
+date: "`r format(Sys.Date(), '%Y-%m')`"
+output: 
+  html_document:
+    theme: readable
+    highlight: kate
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    code_folding: hide
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  fig.align = "center",
+  # dev = "svg",
+  fig.retina = 2
+)
+```
+
+## Libraries
+
+```{r libraries, message=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(tidytext)
+library(plotly)
+library(ggpubr)
+library(GGally)
+library(here)
+```
+
+## Load Data
+
+### Processed tracks
+
+```{r load_processed_track}
+tracks_summary_file <- here("data", "processed", "tracks_summary.tsv")
+tracks_summary_df <- read_tsv(tracks_summary_file, show_col_types = FALSE) %>% 
+  mutate(
+    across(contains("id"), as.character),
+    divided = as.logical(divided), 
+    across(contains("filamented_"), ~factor(
+        .x,
+        levels = c(FALSE, TRUE),
+        labels = c("Not filamented", "Filamented")
+      )
+    ),
+    across(contains("survived_"), ~factor(
+        .x,
+        levels = c(FALSE, TRUE),
+        labels = c("Not survived", "Survived")
+      )
+    ),
+    cell_status = paste0(filamented_track, " - ", survived_strict) %>% 
+      factor()
+  ) %>%
+  relocate(where(is.character), where(is.factor), where(is.logical)) %>% 
+  glimpse()
+```
+
+## Exploratory Data Analysis
+
+### Set default plot style
+
+```{r default_plot_theme}
+theme_set(
+  theme_bw() +
+  theme(legend.position = "top")
+)
+```
+
+### Common factor conversion
+
+```{r}
+parse_metrics_column <- function(.data, metric_column) {
+  .data %>% 
+    mutate(
+      {{ metric_column }} := str_remove(
+        string = {{ metric_column }},
+        pattern = "_(.+)"
+      ) %>% 
+        factor(
+          levels = c("initial", "sos", "end"),
+          labels = c("Initial", "SOS", "End")
+        )
+    )
+}
+```
+
+
+### Cells distribution across experiments
+
+```{r cells_distributions_across_experiments}
+tracks_summary_df %>% 
+  count(experiment_id, cell_status) %>%
+  group_by(experiment_id) %>% 
+  mutate(
+    percentage = n / sum(n) * 100,
+    ymax = cumsum(percentage),
+    ymin = c(0, head(ymax, -1)),
+    labels = paste0(format(percentage, digits = 2), "%"),
+    labels_position = (ymax + ymin) / 2,
+    total_label = paste0("Total:\n", format(sum(n), big.mark = ","), " cells")
+  ) %>% 
+  ungroup() %>% 
+  identity() %>% 
+  ggplot(
+    aes(
+      ymin = ymin,
+      ymax = ymax,
+      xmin = 3,
+      xmax = 4
+    )
+  ) +
+  geom_rect(
+    size = 1.5,
+    color = "white",
+    aes(fill = cell_status)
+  ) +
+  geom_label(
+    x = 2,
+    aes(
+      y = labels_position,
+      label = labels
+    ),
+    label.size = NA,
+    size = 3.5
+  ) +
+  geom_text(aes(x = -Inf, y = -Inf, label = total_label), hjust = 0.5, vjust = 0.5) +
+  facet_grid(. ~ experiment_id) +
+  coord_polar(theta = "y") +
+  xlim(c(-1, 4)) +
+  guides(
+    fill = guide_legend(ncol = 2)
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "bottom"
+  ) +
+  labs(
+    fill = "Cell status"
+  ) +
+  NULL
+```
+
+### Temporal metrics distribution
+
+#### Scaled density GFP
+
+```{r}
+tracks_summary_df %>% 
+  select(-sos_gfp) %>% 
+  pivot_longer(
+    cols = contains("gfp"),
+    names_to = "metric",
+    values_to = "value"
+  ) %>% 
+  parse_metrics_column(metric) %>% 
+  filter(!is.na(value)) %>% 
+  ggplot(aes(x = value, color = cell_status, fill = cell_status)) +
+  geom_density(aes(y = ..scaled..), alpha = 1 / 4) +
+  facet_grid(metric ~ experiment_id) +
+  scale_y_continuous(
+    labels = scales::percent
+  ) +
+  theme(
+    panel.spacing.y = unit(0.5, "lines")
+  ) +
+  guides(
+    color = guide_legend(ncol = 2),
+    fill = guide_legend(ncol = 2)
+  ) +
+  labs(
+    x = "Normalized mean GFP (log10)",
+    y = "Scaled density",
+    color = "Cell status",
+    fill = "Cell status"
+  ) +
+  NULL
+```
+
+#### Scaled density Length
+
+```{r}
+tracks_summary_df %>% 
+  select(-sos_length) %>% 
+  pivot_longer(
+    cols = contains("length"),
+    names_to = "metric",
+    values_to = "value"
+  ) %>% 
+  parse_metrics_column(metric) %>% 
+  filter(!is.na(value)) %>% 
+  ggplot(aes(x = value, color = cell_status, fill = cell_status)) +
+  geom_density(aes(y = ..scaled..), alpha = 1 / 4) +
+  facet_grid(metric ~ experiment_id) +
+  scale_y_continuous(
+    labels = scales::percent
+  ) +
+  coord_cartesian(xlim = c(0, 150)) +
+  theme(
+    panel.spacing.y = unit(0.5, "lines")
+  ) +
+  guides(
+    color = guide_legend(ncol = 2),
+    fill = guide_legend(ncol = 2)
+  ) +
+  labs(
+    x = "Cell length",
+    y = "Scaled density",
+    color = "Cell status",
+    fill = "Cell status"
+  ) +
+  NULL
+```
+
+### But normally we only have two availble variables...
+
+```{r}
+tracks_summary_df %>% 
+  ggplot(aes(x = initial_gfp, y = initial_length, color = cell_status)) +
+  geom_point(alpha = 1/20) +
+  facet_grid(~experiment_id) +
+  guides(
+    color = guide_legend(ncol = 2, override.aes = list(alpha = 1)),
+    fill = guide_legend(ncol = 2)
+  ) +
+  labs(
+    x = "Initial normalized GFP (log10)",
+    y = "Initial length",
+    color = "Cell status"
+  ) +
+  NULL
+```
+
+```{r}
+tracks_summary_df %>% 
+  ggplot(aes(x = end_gfp - initial_gfp, y = end_length - initial_length, color = cell_status)) +
+  geom_point(alpha = 1/20) +
+  facet_grid(~experiment_id) +
+  guides(
+    color = guide_legend(ncol = 2, override.aes = list(alpha = 1)),
+    fill = guide_legend(ncol = 2)
+  ) +
+  labs(
+    x = "End normalized GFP - Initial normalized GFP (log10)",
+    y = "End length - Initial length",
+    color = "Cell status"
+  ) +
+  NULL
+```
+
+### Life time
+
+#### Classes distribution
+
+```{r}
+tracks_summary_df %>% 
+  ggplot(aes(x =factor(lived_time), fill = cell_status)) +
+  geom_bar(position = "fill", stat = "count", width = 1) +
+  facet_grid(experiment_id ~ .) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0), labels = scales::percent) +
+  guides(
+    color = guide_legend(ncol = 2),
+    fill = guide_legend(ncol = 2)
+  ) +
+  theme(
+    panel.spacing.y = unit(0.9, "lines"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    x = "Cell life time",
+    y = "Percentage of cells",
+    fill = "Cell status"
+  ) +
+  NULL
+```
+
+
+#### Cleveland dot plot of GFP
+
+
+```{r}
+tracks_summary_df %>% 
+  select(experiment_id, id, lived_time, filamented_track, survived_strict, contains("gfp")) %>% 
+  rename(survived = contains("survived")) %>% 
+  pivot_longer(
+    cols = contains("gfp"),
+    names_to = "metric"
+  ) %>% 
+  filter(!is.na(value)) %>% 
+  group_by(experiment_id, lived_time, filamented_track, survived, metric) %>% 
+  summarize(
+    value = mean(value),
+    .groups = "drop"
+  ) %>%
+  parse_metrics_column(metric) %>% 
+  identity() %>% 
+  ggplot(aes(x = lived_time, y = value)) +
+  geom_line(aes(group = lived_time)) +
+  geom_point(aes(color = metric, shape = survived)) +
+  facet_grid(filamented_track ~ experiment_id) +
+  scale_color_hue(direction = -1, h.start = 90) +
+  scale_fill_hue(direction = -1, h.start = 90) +
+  labs(
+    x = "Cell life time",
+    y = "Average normalized GFP value",
+    color = "Length type",
+    shape = "Cell status"
+  ) +
+  NULL
+```
+
+#### Cleveland dot plot of length
+
+```{r}
+tracks_summary_df %>% 
+  select(experiment_id, id, lived_time, filamented_track, survived_strict, contains("length")) %>% 
+  rename(survived = contains("survived")) %>% 
+  pivot_longer(
+    cols = contains("length"),
+    names_to = "metric"
+  ) %>% 
+  filter(!is.na(value)) %>% 
+  group_by(experiment_id, lived_time, filamented_track, survived, metric) %>% 
+  summarize(
+    value = mean(value),
+    .groups = "drop"
+  ) %>%
+  parse_metrics_column(metric) %>% 
+  identity() %>% 
+  ggplot(aes(x = lived_time, y = value)) +
+  geom_line(aes(group = lived_time)) +
+  geom_point(aes(color = metric, shape = survived)) +
+  facet_grid(filamented_track ~ experiment_id) +
+  scale_color_hue(direction = -1, h.start = 90) +
+  scale_fill_hue(direction = -1, h.start = 90)  +
+  labs(
+    x = "Cell life time",
+    y = "Average length value",
+    color = "Length type",
+    shape = "Cell status"
+  ) +
+  NULL
+```
+
+### Division
+
+#### Number of divisions
+
+```{r}
+tracks_summary_df %>% 
+  group_by(experiment_id, cell_status) %>% 
+  summarise(
+    n = median(n_divisons),
+    .groups = "drop"
+  ) %>% 
+  ggplot(aes(x = fct_reorder(cell_status, n), y = n, color = cell_status, fill = cell_status)) +
+  geom_point() +
+  geom_segment(aes(xend = cell_status, y=0, yend = n)) +
+  facet_grid(. ~ experiment_id) +
+  theme(
+    panel.grid.major = element_blank(),
+    legend.position = "none"
+  ) +
+  labs(
+    x = "Cell status",
+    y = "Median number of division"
+  ) +
+  coord_flip() +
+  NULL
+```
+
+#### Time since last division
+
+```{r}
+tracks_summary_df %>% 
+  filter(!is.na(time_since_last_divison_to_experiment_start)) %>% 
+  ggplot(aes(x = factor(time_since_last_divison_to_experiment_start), fill = cell_status)) +
+  geom_bar(position = "dodge", stat = "count", color = "white") +
+  facet_grid(experiment_id ~ ., scales = "free_y") +
+  #scale_x_discrete(expand = c(0, 0)) +
+  #scale_y_continuous(expand = c(0, 0)) +
+  guides(
+    color = guide_legend(ncol = 2),
+    fill = guide_legend(ncol = 2)
+  ) +
+  theme(
+    panel.spacing.y = unit(0.9, "lines"),
+    panel.grid.major = element_blank()
+  ) +
+  labs(
+    x = "Time since last division to experiment start",
+    y = "Count of cells",
+    fill = "Cell status"
+  ) +
+  NULL
+```
+
+### PCA
+
+#### Split datasets
+
+```{r}
+experiment_datasets <- tracks_summary_df %>% 
+  select(experiment_id, survived_strict, contains("length"), contains("gfp")) %>% 
+  group_by(experiment_id) %>% 
+  {
+    grouped_data <- .
+    group_split(grouped_data) %>% 
+      set_names(nm = group_keys(grouped_data) %>% pull())
+  } %>% 
+  map(select, -experiment_id) %>% 
+  identity()
+
+chromosome_df <- experiment_datasets$Chromosome
+plasmid_df <- experiment_datasets$Plasmid
+```
+
+#### Chromosome
+
+```{r}
+c_pca_rec <- recipe(survived_strict ~ ., data = chromosome_df) %>% 
+  step_naomit(all_predictors()) %>% 
+  step_normalize(all_predictors()) %>%
+  step_pca(all_predictors())
+
+c_pca_prep <- prep(c_pca_rec)
+c_pca_prep
+```
+
+```{r}
+c_tidied_pca <- tidy(c_pca_prep, 3)
+
+c_tidied_pca %>%
+  filter(component %in% paste0("PC", 1:5)) %>%
+  mutate(component = fct_inorder(component)) %>%
+  ggplot(aes(value, terms, fill = terms)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~component, nrow = 1) +
+  labs(y = NULL)
+```
+
+```{r chromosome_pca_absolute_contributions}
+c_tidied_pca %>%
+  filter(component %in% paste0("PC", 1:4)) %>%
+  group_by(component) %>%
+  top_n(8, abs(value)) %>%
+  ungroup() %>%
+  mutate(terms = reorder_within(terms, abs(value), component)) %>%
+  identity() %>% 
+  ggplot(aes(abs(value), terms, fill = value > 0)) +
+  geom_col() +
+  facet_wrap(~component, scales = "free_y") +
+  scale_y_reordered() +
+  labs(
+    x = "Absolute value of contribution",
+    y = NULL, fill = "Positive?"
+  ) +
+  NULL
+```
+
+
+```{r warning=FALSE}
+c_pca_prep %>% 
+  juice() %>% 
+  plot_ly(x = ~PC1, y = ~PC2, z = ~PC3, color = ~survived_strict, opacity = 1/20)
+```
+
+#### Plasmid
+
+```{r}
+p_pca_rec <- recipe(survived_strict ~ ., data = plasmid_df) %>% 
+  step_naomit(all_predictors()) %>% 
+  step_normalize(all_predictors()) %>%
+  step_pca(all_predictors())
+
+p_pca_prep <- prep(p_pca_rec)
+p_pca_prep
+```
+
+```{r}
+p_tidied_pca <- tidy(p_pca_prep, 3)
+
+p_tidied_pca
+
+p_tidied_pca %>%
+  filter(component %in% paste0("PC", 1:5)) %>%
+  mutate(component = fct_inorder(component)) %>%
+  ggplot(aes(value, terms, fill = terms)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~component, nrow = 1) +
+  labs(y = NULL)
+```
+
+```{r pca_absolute_contributions}
+p_tidied_pca %>%
+  filter(component %in% paste0("PC", 1:4)) %>%
+  group_by(component) %>%
+  top_n(8, abs(value)) %>%
+  ungroup() %>%
+  mutate(terms = reorder_within(terms, abs(value), component)) %>%
+  identity() %>% 
+  ggplot(aes(abs(value), terms, fill = value > 0)) +
+  geom_col() +
+  facet_wrap(~component, scales = "free_y") +
+  scale_y_reordered() +
+  labs(
+    x = "Absolute value of contribution",
+    y = NULL, fill = "Positive?"
+  ) +
+  NULL
+```
+
+```{r, warning=FALSE}
+p_pca_prep %>% 
+  juice() %>% 
+  plot_ly(x = ~PC1, y = ~PC2, z = ~PC3, color = ~survived_strict, opacity = 1/20)
+```
+
+### Paired matrics
+
+#### Chromosome
+
+```{r warning=FALSE}
+chromosome_df %>% 
+  select(survived_strict, where(is.numeric)) %>% 
+  ggpairs(
+    data = .,
+    columns = 2:ncol(.),
+    aes(color = survived_strict, alpha = 1/1000),
+    upper = list(continuous = "points")
+  )
+```
+
+#### Plasmid
+
+```{r warning=FALSE}
+plasmid_df %>% 
+  select(survived_strict, where(is.numeric)) %>% 
+  ggpairs(
+    data = .,
+    columns = 2:ncol(.),
+    aes(color = survived_strict, alpha = 1/1000),
+    upper = list(continuous = "points")
+  )
+```
