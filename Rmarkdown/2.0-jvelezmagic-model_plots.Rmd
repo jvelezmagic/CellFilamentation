@@ -1,0 +1,189 @@
+---
+title: "2.0 - Model plots"
+author: "Jesús Vélez Santiago"
+date: "`r format(Sys.Date(), '%Y-%m')`"
+output: 
+  html_document:
+    theme: readable
+    highlight: kate
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.retina = 2
+)
+```
+
+## Libraries
+
+```{r libraries, message=FALSE}
+library(tidyverse)
+library(patchwork)
+library(fs)
+library(here)
+```
+
+## Load data
+
+```{r load_data}
+model_data_dir <- here("data", "exp_raw")
+
+model_datasets <- dir_ls(model_data_dir) %>% 
+  set_names(
+    x = .,
+    nm = . %>%
+      path_file() %>% 
+      path_ext_remove()
+  ) %>% 
+  map(read_csv, show_col_types = FALSE)
+
+names(model_datasets)
+```
+
+## Visualize model results
+
+### Set defaults for plots
+
+```{r plot_defaults}
+theme_set(
+  theme_bw() +
+  theme(
+    legend.position = "top"
+  )
+)
+```
+
+### Toxin exposure experiment
+
+```{r}
+p_1 <- model_datasets$toxin_exposure_experiment %>%
+  mutate(
+    state = factor(state, levels = c("Normal", "Stressed", "Dead")),
+    experiment = factor(experiment, levels = c("Control", "Normal"), labels = c("Without filamentation", "With filamentation"))
+  ) %>% 
+  ggplot(aes(x = exposure_time, y = amount_toxin, fill = state)) +
+  geom_tile() +
+  facet_grid(. ~ experiment) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_hue(direction = -1, h.start = 90) +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    panel.spacing.x = unit(1, "lines"),
+    plot.tag.position = "topright"
+  ) +
+  labs(
+    x = "",
+    y = "Amount toxin",
+    fill = "Cell status",
+    tag = "A"
+  ) +
+  NULL
+```
+
+```{r}
+p_2 <- model_datasets$increase_resistance %>% 
+  ggplot(aes(x = exposure_time, y = tolerance)) +
+  geom_line() +
+  geom_area(alpha = 1/ 3) +
+  labs(
+    x = "Exposure time",
+    y = "Increased resistance",
+    tag = "B"
+  ) +
+  theme(
+    plot.tag.position = "topright"
+  )
+```
+
+```{r}
+(p_1 / p_2) +
+  plot_layout(heights = c(4,1))
+```
+
+## Antitoxin expeiriment
+
+```{r}
+antitoxin_dist_p <- model_datasets$antitoxins_distributions %>% 
+  ggplot(aes(x = antitoxin, fill = ..x..)) +
+  geom_histogram(bins = 10, binwidth = 10) +
+  facet_grid(. ~ sigma) +
+  theme(
+    legend.position = "none"
+  ) +
+  labs(
+    x = "Amount of antitoxin",
+    y = "Number of cells"
+  ) +
+  theme(
+    panel.spacing.x = unit(1, "lines"),
+    strip.background = element_blank()
+  )
+
+antitoxin_lines_p <- model_datasets$df_antitoxin_experiment %>% 
+  mutate(
+    variable = factor(variable, levels = c("Normal", "Stressed", "Dead")),
+  ) %>% 
+  ggplot(aes(x = time, y = value, fill = variable)) +
+  geom_area() +
+  facet_grid(. ~ sigma) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_hue(direction = -1, h.start = 90) +
+  labs(
+    x = "Exposure time",
+    y = "Fraction population",
+    fill = "Cell status"
+  ) +
+  theme(
+    panel.spacing.x = unit(1, "lines"),
+    strip.background = element_blank()
+  )
+  
+
+(antitoxin_dist_p / antitoxin_lines_p) +
+  plot_layout(guides = "collect")
+```
+
+```{r}
+survival_probability <- model_datasets$antitoxin_experiment %>% 
+  mutate(
+    value = value / max(value)
+  ) %>% 
+  filter(variable == "Dead") %>% 
+  mutate(value = 1 - value) %>% 
+  identity()
+  
+population_t_kill = survival_probability %>% 
+  filter(sigma == 0, value == 0) %>% 
+  pull(time) %>% 
+  first()
+
+survival_probability %>% 
+  ggplot(aes(x = time, y = sigma, fill = value)) +
+  geom_raster() +
+  geom_vline(xintercept = population_t_kill, color = "white", linetyoe = "dashed") +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_viridis_c(option = "inferno", labels = scales::percent) +
+  labs(
+    x = "Exposure time",
+    y = "Population variability",
+    fill = "Survival probability"
+  ) +
+  theme(
+    legend.position = "top"
+  ) +
+  NULL
+```
+
