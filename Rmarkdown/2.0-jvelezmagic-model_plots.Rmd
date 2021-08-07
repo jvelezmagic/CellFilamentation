@@ -206,7 +206,7 @@ population_t_kill = survival_probability %>%
   pull(time) %>% 
   first()
 
-survival_probability %>% 
+p_survival_probability <- survival_probability %>% 
   ggplot(aes(x = time, y = sigma, fill = value)) +
   geom_raster() +
   geom_vline(xintercept = population_t_kill, color = "white", linetyoe = "dashed") +
@@ -222,5 +222,20 @@ survival_probability %>%
     legend.position = "top"
   ) +
   NULL
+
+p_survival_probability
 ```
 
+```{r}
+ggsave(
+  filename = here("plots", "r", "model", "survival_probability.png"),
+  plot = p_survival_probability,
+  dpi = 320
+)
+
+ggsave(
+  filename = here("plots", "r", "model", "survival_probability.pdf"),
+  plot = p_survival_probability,
+  dpi = 320
+)
+```
