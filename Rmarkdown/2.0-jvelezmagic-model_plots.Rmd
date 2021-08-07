@@ -128,13 +128,14 @@ ggsave(
 ```
 
 
-## Antitoxin expeiriment
+## Antitoxin experiment
 
 ```{r}
 antitoxin_dist_p <- model_datasets$antitoxins_distributions %>% 
   ggplot(aes(x = antitoxin, fill = ..x..)) +
-  geom_histogram(bins = 10, binwidth = 10) +
+  geom_histogram(binwidth = 5, breaks = seq(0, 70, 5)) +
   facet_grid(. ~ sigma) +
+  scale_fill_viridis_c(option = "inferno", labels = scales::percent) +
   theme(
     legend.position = "none"
   ) +
@@ -144,7 +145,8 @@ antitoxin_dist_p <- model_datasets$antitoxins_distributions %>%
   ) +
   theme(
     panel.spacing.x = unit(1, "lines"),
-    strip.background = element_blank()
+    strip.background = element_blank(),
+    plot.tag.position = "topright"
   )
 
 antitoxin_lines_p <- model_datasets$df_antitoxin_experiment %>% 
@@ -164,13 +166,31 @@ antitoxin_lines_p <- model_datasets$df_antitoxin_experiment %>%
   ) +
   theme(
     panel.spacing.x = unit(1, "lines"),
-    strip.background = element_blank()
+    strip.background = element_blank(),
+    plot.tag.position = "topright"
   )
   
 
-(antitoxin_dist_p / antitoxin_lines_p) +
+p_variability_toxin_antitoxin <- (antitoxin_dist_p / antitoxin_lines_p) +
   plot_layout(guides = "collect")
+
+p_variability_toxin_antitoxin
 ```
+
+```{r}
+ggsave(
+  filename = here("plots", "r", "model", "variability_toxin_antitoxin.png"),
+  plot = p_variability_toxin_antitoxin,
+  dpi = 320
+)
+
+ggsave(
+  filename = here("plots", "r", "model", "variability_toxin_antitoxin.pdf"),
+  plot = p_variability_toxin_antitoxin,
+  dpi = 320
+)
+```
+
 
 ```{r}
 survival_probability <- model_datasets$antitoxin_experiment %>% 
