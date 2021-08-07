@@ -179,7 +179,7 @@ function simulation_plot(
     xlims!(p, (0, x_max))
     title!(p, " ")
     plot!(p, xformatter = _ -> "", subplot = 1)
-    plot!(p, bottom_margin = -10Measures.mm, subplot = 1)
+    plot!(p, bottom_margin = -5Measures.mm, subplot = 1)
 
     return p
 end
