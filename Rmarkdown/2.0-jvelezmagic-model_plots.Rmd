@@ -123,7 +123,7 @@ ggsave(
 ggsave(
   filename = here("plots", "r", "model", "incresed_time_resistance.pdf"),
   plot = p_toxin_exposure_experiment,
-  dpi = 300
+  dpi = 320
 )
 ```
 
