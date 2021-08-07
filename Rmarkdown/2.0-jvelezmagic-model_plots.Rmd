@@ -107,9 +107,26 @@ p_2 <- model_datasets$increase_resistance %>%
 ```
 
 ```{r}
-(p_1 / p_2) +
+p_toxin_exposure_experiment <- (p_1 / p_2) +
   plot_layout(heights = c(4,1))
+
+p_toxin_exposure_experiment
 ```
+
+```{r}
+ggsave(
+  filename = here("plots", "r", "model", "incresed_time_resistance.png"),
+  plot = p_toxin_exposure_experiment,
+  dpi = 320
+)
+
+ggsave(
+  filename = here("plots", "r", "model", "incresed_time_resistance.pdf"),
+  plot = p_toxin_exposure_experiment,
+  dpi = 320
+)
+```
+
 
 ## Antitoxin expeiriment
 
