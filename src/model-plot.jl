@@ -132,7 +132,7 @@ function simulation_plot(
     y_max = cell.kill_threshold * 1.11
 
     # Initialize empty plot.
-    p = plot(; ll...)
+    p = plot(; ll..., dpi = 700)
 
     # Geometric annotations part 1.
     hline!(p, [cell.filamentation_threshold], c = τ[:sos][2], subplot = 1; lines...)
