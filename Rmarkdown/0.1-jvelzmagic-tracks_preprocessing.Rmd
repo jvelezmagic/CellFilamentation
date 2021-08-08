@@ -78,6 +78,11 @@ tracks_summary_df <- lineages_df %>%
     # Division data
     divided = any(division),
     n_divisons = sum(division),
+    frame_last_division = ifelse(
+      test = divided,
+      yes = keep(centered_frame, division) %>% last(),
+      no = NA
+    ),
     frame_since_last_divison_to_experiment_start = ifelse(
       test = divided,
       yes = keep(centered_frame, division) %>%
@@ -88,6 +93,7 @@ tracks_summary_df <- lineages_df %>%
         },
       no = NA
     ),
+    survived_division = exists_before_experiment && frame_last_division > centered_antibiotic_end_frame,
      .groups = "drop"
   ) %>% 
   rename_with(~str_replace(.x, "frame", "time"), contains("frame")) %>%
@@ -96,6 +102,13 @@ tracks_summary_df <- lineages_df %>%
   glimpse() %>% 
   identity()
 ```
+
+```{r}
+tracks_summary_df %>% 
+  filter(initial_time < centered_antibiotic_start_time, end_time > centered_antibiotic_end_time) %>% 
+  count(experiment_id, filamented_track, survived_division)
+```
+
 
 ## Save data
 

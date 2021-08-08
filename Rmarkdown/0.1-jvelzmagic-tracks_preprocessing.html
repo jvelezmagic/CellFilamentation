@@ -430,25 +430,31 @@ div.tocify {
 <span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Division data</span></span>
 <span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="at">divided =</span> <span class="fu">any</span>(division),</span>
 <span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    <span class="at">n_divisons =</span> <span class="fu">sum</span>(division),</span>
-<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>    <span class="at">frame_since_last_divison_to_experiment_start =</span> <span class="fu">ifelse</span>(</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>    <span class="at">frame_last_division =</span> <span class="fu">ifelse</span>(</span>
 <span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>      <span class="at">test =</span> divided,</span>
-<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>      <span class="at">yes =</span> <span class="fu">keep</span>(centered_frame, division) <span class="sc">%&gt;%</span></span>
-<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>        <span class="fu">keep</span>(<span class="sc">~</span>.x <span class="sc">&lt;</span> centered_antibiotic_start_frame) <span class="sc">%&gt;%</span></span>
-<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>        {</span>
-<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>          .data <span class="ot">&lt;-</span> <span class="fu">is_empty</span>(.)</span>
-<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>          <span class="fu">ifelse</span>(.data, <span class="cn">NA</span>, centered_antibiotic_start_frame <span class="sc">-</span> <span class="fu">max</span>(.))</span>
-<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>        },</span>
-<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>      <span class="at">no =</span> <span class="cn">NA</span></span>
-<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>     <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span></span>
-<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
-<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename_with</span>(<span class="sc">~</span><span class="fu">str_replace</span>(.x, <span class="st">&quot;frame&quot;</span>, <span class="st">&quot;time&quot;</span>), <span class="fu">contains</span>(<span class="st">&quot;frame&quot;</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(<span class="fu">contains</span>(<span class="st">&quot;time&quot;</span>), <span class="sc">~</span>.x <span class="sc">*</span> <span class="dv">10</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(<span class="fu">where</span>(is.character), <span class="fu">where</span>(is.factor), <span class="fu">where</span>(is.logical), <span class="fu">where</span>(is.numeric)) <span class="sc">%&gt;%</span></span>
-<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>  <span class="fu">glimpse</span>() <span class="sc">%&gt;%</span> </span>
-<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a>  <span class="fu">identity</span>()</span></code></pre></div>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>      <span class="at">yes =</span> <span class="fu">keep</span>(centered_frame, division) <span class="sc">%&gt;%</span> <span class="fu">last</span>(),</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>      <span class="at">no =</span> <span class="cn">NA</span></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>    <span class="at">frame_since_last_divison_to_experiment_start =</span> <span class="fu">ifelse</span>(</span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>      <span class="at">test =</span> divided,</span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>      <span class="at">yes =</span> <span class="fu">keep</span>(centered_frame, division) <span class="sc">%&gt;%</span></span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>        <span class="fu">keep</span>(<span class="sc">~</span>.x <span class="sc">&lt;</span> centered_antibiotic_start_frame) <span class="sc">%&gt;%</span></span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>        {</span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>          .data <span class="ot">&lt;-</span> <span class="fu">is_empty</span>(.)</span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>          <span class="fu">ifelse</span>(.data, <span class="cn">NA</span>, centered_antibiotic_start_frame <span class="sc">-</span> <span class="fu">max</span>(.))</span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>        },</span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>      <span class="at">no =</span> <span class="cn">NA</span></span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>    <span class="at">survived_division =</span> exists_before_experiment <span class="sc">&amp;&amp;</span> frame_last_division <span class="sc">&gt;</span> centered_antibiotic_end_frame,</span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a>     <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span></span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename_with</span>(<span class="sc">~</span><span class="fu">str_replace</span>(.x, <span class="st">&quot;frame&quot;</span>, <span class="st">&quot;time&quot;</span>), <span class="fu">contains</span>(<span class="st">&quot;frame&quot;</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(<span class="fu">contains</span>(<span class="st">&quot;time&quot;</span>), <span class="sc">~</span>.x <span class="sc">*</span> <span class="dv">10</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(<span class="fu">where</span>(is.character), <span class="fu">where</span>(is.factor), <span class="fu">where</span>(is.logical), <span class="fu">where</span>(is.numeric)) <span class="sc">%&gt;%</span></span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a>  <span class="fu">glimpse</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a>  <span class="fu">identity</span>()</span></code></pre></div>
 <pre><code>## Rows: 35,529
-## Columns: 27
+## Columns: 29
 ## $ experiment_id                               &lt;chr&gt; &quot;Chromosome&quot;, &quot;Chromosome&quot;…
 ## $ id                                          &lt;chr&gt; &quot;xy01_1_10.008-34.000&quot;, &quot;x…
 ## $ filamented_track                            &lt;lgl&gt; TRUE, TRUE, TRUE, TRUE, TR…
@@ -458,6 +464,7 @@ div.tocify {
 ## $ survived_strict                             &lt;lgl&gt; TRUE, TRUE, FALSE, FALSE, …
 ## $ survived_soft                               &lt;lgl&gt; TRUE, TRUE, TRUE, TRUE, FA…
 ## $ divided                                     &lt;lgl&gt; TRUE, TRUE, TRUE, TRUE, TR…
+## $ survived_division                           &lt;lgl&gt; TRUE, FALSE, FALSE, FALSE,…
 ## $ initial_time                                &lt;dbl&gt; 0, 10, 60, 60, 150, 160, 1…
 ## $ end_time                                    &lt;dbl&gt; 240, 160, 170, 240, 180, 1…
 ## $ lived_time                                  &lt;dbl&gt; 240, 150, 110, 180, 30, 20…
@@ -475,12 +482,31 @@ div.tocify {
 ## $ sos_gfp                                     &lt;dbl&gt; 0.9980406, 0.9980406, 0.99…
 ## $ sos_ds_red                                  &lt;dbl&gt; 2.987671, 2.987671, 3.0841…
 ## $ n_divisons                                  &lt;int&gt; 7, 1, 1, 7, 2, 1, 3, 4, 4,…
+## $ time_last_division                          &lt;dbl&gt; 220, 10, 60, 210, 170, 160…
 ## $ time_since_last_divison_to_experiment_start &lt;dbl&gt; 50, 50, NA, NA, NA, NA, NA…</code></pre>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>tracks_summary_df <span class="sc">%&gt;%</span> </span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(initial_time <span class="sc">&lt;</span> centered_antibiotic_start_time, end_time <span class="sc">&gt;</span> centered_antibiotic_end_time) <span class="sc">%&gt;%</span> </span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(experiment_id, filamented_track, survived_division)</span></code></pre></div>
+<pre><code>## # A tibble: 12 × 4
+##    experiment_id filamented_track survived_division     n
+##    &lt;chr&gt;         &lt;lgl&gt;            &lt;lgl&gt;             &lt;int&gt;
+##  1 Chromosome    FALSE            FALSE                15
+##  2 Chromosome    FALSE            TRUE                  2
+##  3 Chromosome    FALSE            NA                    1
+##  4 Chromosome    TRUE             FALSE               147
+##  5 Chromosome    TRUE             TRUE                278
+##  6 Chromosome    TRUE             NA                   14
+##  7 Plasmid       FALSE            FALSE              1959
+##  8 Plasmid       FALSE            TRUE               1030
+##  9 Plasmid       FALSE            NA                 2402
+## 10 Plasmid       TRUE             FALSE               414
+## 11 Plasmid       TRUE             TRUE                759
+## 12 Plasmid       TRUE             NA                  194</code></pre>
 </div>
 <div id="save-data" class="section level2">
 <h2>Save data</h2>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>tracks_summary_df <span class="sc">%&gt;%</span> </span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">write_tsv</span>(<span class="at">file =</span> <span class="fu">here</span>(<span class="st">&quot;data&quot;</span>, <span class="st">&quot;processed&quot;</span>, <span class="st">&quot;tracks_summary.tsv&quot;</span>))</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>tracks_summary_df <span class="sc">%&gt;%</span> </span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">write_tsv</span>(<span class="at">file =</span> <span class="fu">here</span>(<span class="st">&quot;data&quot;</span>, <span class="st">&quot;processed&quot;</span>, <span class="st">&quot;tracks_summary.tsv&quot;</span>))</span></code></pre></div>
 </div>
 
 
