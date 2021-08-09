@@ -38,7 +38,9 @@ lineages_df <- read_tsv(lineages_files, show_col_types = FALSE) %>%
   glimpse()
 ```
 
-## Tracks preprocessing
+## Version 1
+
+### Tracks preprocessing
 
 ```{r tracks_preprocessing}
 tracks_summary_df <- lineages_df %>% 
@@ -103,16 +105,89 @@ tracks_summary_df <- lineages_df %>%
   identity()
 ```
 
-```{r}
-tracks_summary_df %>% 
-  filter(initial_time < centered_antibiotic_start_time, end_time > centered_antibiotic_end_time) %>% 
-  count(experiment_id, filamented_track, survived_division)
-```
-
-
-## Save data
+### Save data
 
 ```{r save_tracks_summary}
 tracks_summary_df %>% 
   write_tsv(file = here("data", "processed", "tracks_summary.tsv"))
+```
+
+## Version 2
+
+### Tracks preprocessing
+
+```{r tracks_preprocessing_2}
+tracks_summary_df_2 <- lineages_df %>% 
+  filter(centered_frame <= centered_antibiotic_end_frame + 1) %>% 
+  mutate(centered_experiment_end_frame = max(centered_frame)) %>% 
+  group_by(experiment_id, id) %>% 
+  summarize(
+    # Create filamentation id.
+    filamented_id = any(filamented_at_frame),
+    # Create temporal variables.
+    initial_frame = first(centered_frame),
+    end_frame = last(centered_frame),
+    lived_frame = end_frame - initial_frame,
+    centered_antibiotic_start_frame = first(centered_antibiotic_start_frame),
+    centered_antibiotic_end_frame = first(centered_antibiotic_end_frame),
+    centered_experiment_end_frame = first(centered_experiment_end_frame),
+    # Cell status variables.
+    sos_at_frame = ifelse(filamented_id, which.max(filamented_at_frame), NA),
+    dead_or_missing_at_frame = ifelse(end_frame == centered_experiment_end_frame, NA, end_frame + 1),
+    exists_before_experiment = initial_frame < centered_antibiotic_start_frame,
+    exists_before_or_during_experiment = initial_frame <= centered_antibiotic_end_frame,
+    exists_after_experiment = end_frame > centered_antibiotic_end_frame,
+    dead_or_missing_after_start_frame = end_frame > centered_antibiotic_start_frame,
+    survived_strict = exists_before_experiment && exists_after_experiment,
+    survived_soft = exists_before_or_during_experiment && exists_after_experiment,
+    # Variable values.
+    across(
+      .cols = c(length, gfp, ds_red),
+      .fns = first,
+      .names = "initial_{.col}"
+    ),
+    across(
+      .cols = c(length, gfp, ds_red),
+      .fns = last,
+      .names = "end_{.col}"
+    ),
+    across(
+      .cols = c(length, gfp, ds_red),
+      .fns = ~ifelse(!is.na(sos_at_frame), nth(.x, n = sos_at_frame), NA),
+      .names = "sos_{.col}"
+    ),
+    # Division data
+    divided = any(division),
+    n_divisons = sum(division),
+    frame_last_division = ifelse(
+      test = divided,
+      yes = keep(centered_frame, division) %>% last(),
+      no = NA
+    ),
+    frame_since_last_divison_to_experiment_start = ifelse(
+      test = divided,
+      yes = keep(centered_frame, division) %>%
+        keep(~.x < centered_antibiotic_start_frame) %>%
+        {
+          .data <- is_empty(.)
+          ifelse(.data, NA, centered_antibiotic_start_frame - max(.))
+        },
+      no = NA
+    ),
+    .groups = "drop"
+  ) %>% 
+  filter(exists_before_experiment, dead_or_missing_after_start_frame) %>% 
+  rename_with(~str_replace(.x, "frame", "time"), contains("frame")) %>%
+  mutate(across(contains("time"), ~.x * 10)) %>%
+  relocate(where(is.character), where(is.factor), where(is.logical), where(is.numeric)) %>%
+  select(-exists_before_experiment, -exists_before_or_during_experiment, -exists_after_experiment, -initial_time, -end_time, -dead_or_missing_after_start_time) %>% 
+  glimpse() %>% 
+  identity()
+```
+
+### Save data
+
+```{r save_tracks_summary_2}
+tracks_summary_df_2 %>% 
+  write_tsv(file = here("data", "processed", "tracks_summary_2.tsv"))
 ```
