@@ -1,0 +1,65 @@
+---
+title: "0.0 - Find cells of interest"
+author: "Jesús Vélez Santiago"
+date: "`r format(Sys.Date(), '%Y-%m')`"
+output: 
+  html_document:
+    theme: readable
+    highlight: kate
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  fig.align = "center",
+  fig.retina = 2
+)
+```
+
+## Libraries
+
+```{r libraries, message=FALSE}
+library(tidyverse)
+library(here)
+```
+
+## Load data
+
+```{r load-data}
+lineages_files <- here("data", "raw", "lineages.tsv")
+lineages_df <- read_tsv(lineages_files, show_col_types = FALSE) %>%
+  mutate(across(contains("id"), as.character)) %>% 
+  glimpse()
+```
+
+## Preprocessing
+
+```{r preprocessing}
+target_cells_df <- lineages_df %>% 
+  mutate(
+    id = paste0(trap_id, "_", lineage_id, "_", track_id)
+  ) %>% 
+  select(-contains("id"), experiment_id, id, everything()) %>% 
+  group_by(experiment_id, id) %>% 
+  summarise(
+    exists_before_experiment = first(centered_frame) < first(centered_antibiotic_start_frame),
+    dead_or_missing_after_experiment_start = last(centered_frame) > last(centered_antibiotic_start_frame),
+    .groups = "drop"
+  ) %>% 
+  filter(exists_before_experiment, dead_or_missing_after_experiment_start) %>%
+  select(-exists_before_experiment, -dead_or_missing_after_experiment_start) %>% 
+  identity()
+```
+
+## Save data
+
+```{r save-data}
+target_cells_df %>% 
+  write_tsv(file = here("data", "processed", "target_cells.tsv"))
+```
