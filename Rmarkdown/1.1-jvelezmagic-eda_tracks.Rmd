@@ -381,7 +381,7 @@ tracks_summary_df %>%
   ggplot(aes(x = lived_time, y = value)) +
   geom_line(aes(group = lived_time)) +
   geom_point(aes(color = metric, shape = survived)) +
-  facet_grid(filamented_id ~ experiment_id) +
+  facet_grid(experiment_id ~ filamented_id) +
   scale_color_hue(direction = -1, h.start = 90) +
   scale_fill_hue(direction = -1, h.start = 90) +
   labs(
