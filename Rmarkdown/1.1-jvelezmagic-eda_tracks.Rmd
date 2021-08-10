@@ -32,6 +32,7 @@ library(tidytext)
 library(plotly)
 library(ggpubr)
 library(GGally)
+library(ggdist)
 library(embed)
 library(here)
 ```
@@ -41,7 +42,7 @@ library(here)
 ### Processed tracks
 
 ```{r load_processed_track}
-tracks_summary_file <- here("data", "processed", "tracks_summary.tsv")
+tracks_summary_file <- here("data", "processed", "tracks_summary_2.tsv")
 tracks_summary_df <- read_tsv(tracks_summary_file, show_col_types = FALSE) %>% 
   mutate(
     across(contains("id"), as.character),
@@ -58,11 +59,10 @@ tracks_summary_df <- read_tsv(tracks_summary_file, show_col_types = FALSE) %>%
         labels = c("Not survived", "Survived")
       )
     ),
-    cell_status = paste0(filamented_track, " - ", survived_strict) %>% 
+    cell_status = paste0(filamented_id, " - ", survived_strict) %>% 
       factor()
   ) %>%
   relocate(where(is.character), where(is.factor), where(is.logical)) %>% 
-  filter(initial_time <= centered_antibiotic_start_time, end_time > centered_antibiotic_start_time) %>% 
   glimpse()
 ```
 
@@ -73,7 +73,10 @@ tracks_summary_df <- read_tsv(tracks_summary_file, show_col_types = FALSE) %>%
 ```{r default_plot_theme}
 theme_set(
   theme_bw() +
-  theme(legend.position = "top")
+  theme(
+    legend.position = "top",
+    strip.background = element_blank()
+  )
 )
 ```
 
@@ -156,6 +159,38 @@ tracks_summary_df %>%
 #### Scaled density GFP
 
 ```{r}
+# tracks_summary_df %>% 
+#   select(-sos_gfp) %>% 
+#   pivot_longer(
+#     cols = contains("gfp"),
+#     names_to = "metric",
+#     values_to = "value"
+#   ) %>% 
+#   parse_metrics_column(metric) %>% 
+#   filter(!is.na(value)) %>% 
+#   ggplot(aes(x = value, color = cell_status, fill = cell_status)) +
+#   geom_density(aes(y = ..scaled..), alpha = 1 / 4) +
+#   facet_grid(metric ~ experiment_id) +
+#   scale_y_continuous(
+#     labels = scales::percent
+#   ) +
+#   theme(
+#     panel.spacing.y = unit(0.5, "lines")
+#   ) +
+#   guides(
+#     color = guide_legend(ncol = 2),
+#     fill = guide_legend(ncol = 2)
+#   ) +
+#   labs(
+#     x = "Normalized mean GFP (log10)",
+#     y = "Scaled density",
+#     color = "Cell status",
+#     fill = "Cell status"
+#   ) +
+#   NULL
+```
+
+```{r}
 tracks_summary_df %>% 
   select(-sos_gfp) %>% 
   pivot_longer(
@@ -165,29 +200,65 @@ tracks_summary_df %>%
   ) %>% 
   parse_metrics_column(metric) %>% 
   filter(!is.na(value)) %>% 
-  ggplot(aes(x = value, color = cell_status, fill = cell_status)) +
-  geom_density(aes(y = ..scaled..), alpha = 1 / 4) +
-  facet_grid(metric ~ experiment_id) +
-  scale_y_continuous(
-    labels = scales::percent
-  ) +
-  theme(
-    panel.spacing.y = unit(0.5, "lines")
-  ) +
+  identity() %>% 
+  ggplot(aes(x = cell_status, y = value, fill = cell_status)) +
+  stat_halfeye() +
+  stat_summary(fun=median, geom="line", aes(group=1))  + 
+  stat_compare_means(method = "anova", label.y.npc = 0.9) + # Add global annova p-value
+  stat_compare_means(label = "p.signif", method = "t.test", ref.group = "Filamented - Survived", hide.ns = TRUE, label.y.npc = 0.8) +
+  stat_gradientinterval(position = "dodge", fill_type = "segments") +
+  facet_grid(experiment_id ~ metric) +
   guides(
     color = guide_legend(ncol = 2),
     fill = guide_legend(ncol = 2)
   ) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  ) +
   labs(
-    x = "Normalized mean GFP (log10)",
-    y = "Scaled density",
-    color = "Cell status",
-    fill = "Cell status"
+    fill = "Cell status",
+    y = "GFP value"
   ) +
   NULL
 ```
 
+
 #### Scaled density Length
+
+```{r}
+# tracks_summary_df %>% 
+#   select(-sos_length) %>% 
+#   pivot_longer(
+#     cols = contains("length"),
+#     names_to = "metric",
+#     values_to = "value"
+#   ) %>% 
+#   parse_metrics_column(metric) %>% 
+#   filter(!is.na(value)) %>% 
+#   ggplot(aes(x = value, color = cell_status, fill = cell_status)) +
+#   geom_density(aes(y = ..scaled..), alpha = 1 / 4) +
+#   facet_grid(metric ~ experiment_id) +
+#   scale_y_continuous(
+#     labels = scales::percent
+#   ) +
+#   coord_cartesian(xlim = c(0, 150)) +
+#   theme(
+#     panel.spacing.y = unit(0.5, "lines")
+#   ) +
+#   guides(
+#     color = guide_legend(ncol = 2),
+#     fill = guide_legend(ncol = 2)
+#   ) +
+#   labs(
+#     x = "Cell length",
+#     y = "Scaled density",
+#     color = "Cell status",
+#     fill = "Cell status"
+#   ) +
+#   NULL
+```
 
 ```{r}
 tracks_summary_df %>% 
@@ -199,25 +270,27 @@ tracks_summary_df %>%
   ) %>% 
   parse_metrics_column(metric) %>% 
   filter(!is.na(value)) %>% 
-  ggplot(aes(x = value, color = cell_status, fill = cell_status)) +
-  geom_density(aes(y = ..scaled..), alpha = 1 / 4) +
-  facet_grid(metric ~ experiment_id) +
-  scale_y_continuous(
-    labels = scales::percent
-  ) +
-  coord_cartesian(xlim = c(0, 150)) +
-  theme(
-    panel.spacing.y = unit(0.5, "lines")
-  ) +
+  identity() %>% 
+  ggplot(aes(x = cell_status, y = value, fill = cell_status)) +
+  stat_halfeye() +
+  stat_summary(fun=median, geom="line", aes(group=1))  + 
+  stat_compare_means(method = "anova", label.y.npc = 0.4, label.x.npc = 0.5) + # Add global annova p-value
+  stat_compare_means(label = "p.signif", method = "t.test", ref.group = "Filamented - Survived", hide.ns = TRUE, label.y.npc = 0.3) +
+  stat_gradientinterval(position = "dodge", fill_type = "segments") +
+  facet_grid(experiment_id ~ metric) +
+  coord_cartesian(ylim = c(0, 150)) +
   guides(
     color = guide_legend(ncol = 2),
     fill = guide_legend(ncol = 2)
   ) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  ) +
   labs(
-    x = "Cell length",
-    y = "Scaled density",
-    color = "Cell status",
-    fill = "Cell status"
+    fill = "Cell status",
+    y = "Length value"
   ) +
   NULL
 ```
@@ -291,14 +364,14 @@ tracks_summary_df %>%
 
 ```{r}
 tracks_summary_df %>% 
-  select(experiment_id, id, lived_time, filamented_track, survived_strict, contains("gfp")) %>% 
+  select(experiment_id, id, lived_time, filamented_id, survived_strict, contains("gfp")) %>% 
   rename(survived = contains("survived")) %>% 
   pivot_longer(
     cols = contains("gfp"),
     names_to = "metric"
   ) %>% 
   filter(!is.na(value)) %>% 
-  group_by(experiment_id, lived_time, filamented_track, survived, metric) %>% 
+  group_by(experiment_id, lived_time, filamented_id, survived, metric) %>% 
   summarize(
     value = mean(value),
     .groups = "drop"
@@ -308,7 +381,7 @@ tracks_summary_df %>%
   ggplot(aes(x = lived_time, y = value)) +
   geom_line(aes(group = lived_time)) +
   geom_point(aes(color = metric, shape = survived)) +
-  facet_grid(filamented_track ~ experiment_id) +
+  facet_grid(filamented_id ~ experiment_id) +
   scale_color_hue(direction = -1, h.start = 90) +
   scale_fill_hue(direction = -1, h.start = 90) +
   labs(
@@ -327,24 +400,29 @@ tracks_summary_df %>%
 
 ```{r}
 tracks_summary_df %>% 
-  select(experiment_id, id, lived_time, filamented_track, survived_strict, contains("length")) %>% 
+  select(experiment_id, id, lived_time, filamented_id, survived_strict, filamentation_threshold, contains("length")) %>% 
   rename(survived = contains("survived")) %>% 
   pivot_longer(
     cols = contains("length"),
     names_to = "metric"
   ) %>% 
   filter(!is.na(value)) %>% 
-  group_by(experiment_id, lived_time, filamented_track, survived, metric) %>% 
+  group_by(experiment_id, lived_time, filamented_id, survived, metric) %>% 
   summarize(
+    filamentation_threshold = first(filamentation_threshold),
     value = mean(value),
     .groups = "drop"
   ) %>%
+  mutate(
+    lived_time = factor(lived_time),
+  ) %>% 
   parse_metrics_column(metric) %>% 
   identity() %>% 
   ggplot(aes(x = lived_time, y = value)) +
+  geom_hline(aes(yintercept = filamentation_threshold), linetype = "dashed", alpha = 1/2) +
   geom_line(aes(group = lived_time)) +
   geom_point(aes(color = metric, shape = survived)) +
-  facet_grid(filamented_track ~ experiment_id) +
+  facet_grid(experiment_id ~ filamented_id) +
   scale_color_hue(direction = -1, h.start = 90) +
   scale_fill_hue(direction = -1, h.start = 90)  +
   labs(

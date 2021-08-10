@@ -124,6 +124,7 @@ tracks_summary_df_2 <- lineages_df %>%
   summarize(
     # Create filamentation id.
     filamented_id = any(filamented_at_frame),
+    filamentation_threshold = first(filamentation_threshold),
     # Create temporal variables.
     initial_frame = first(centered_frame),
     end_frame = last(centered_frame),
