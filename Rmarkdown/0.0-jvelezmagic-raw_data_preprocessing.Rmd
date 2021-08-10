@@ -70,6 +70,9 @@ processed_lineages_df <- lineages_df %>%
   ) %>% 
   add_count(experiment_id, trap_id, lineage_id, track_id, centered_frame) %>% 
   filter(n == 1) %>% 
+  group_by(experiment_id, id) %>% 
+  mutate(filamented_id = any(filamented_at_frame)) %>% 
+  ungroup() %>% 
   relocate(where(is.character), where(is.logical), where(is.numeric)) %>% 
   select(-n, -mean_gfp, -mean_ds_red) %>% 
   glimpse() %>% 
