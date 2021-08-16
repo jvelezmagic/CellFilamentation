@@ -133,7 +133,7 @@ tracks_summary_df_2 <- lineages_df %>%
     centered_antibiotic_end_frame = first(centered_antibiotic_end_frame),
     centered_experiment_end_frame = first(centered_experiment_end_frame),
     # Cell status variables.
-    sos_at_frame = ifelse(filamented_id, which.max(filamented_at_frame), NA),
+    sos_at_frame = ifelse(filamented_id, centered_frame[which.max(filamented_at_frame)], NA),
     dead_or_missing_at_frame = ifelse(end_frame == centered_experiment_end_frame, NA, end_frame + 1),
     exists_before_experiment = initial_frame < centered_antibiotic_start_frame,
     exists_before_or_during_experiment = initial_frame <= centered_antibiotic_end_frame,
@@ -181,7 +181,7 @@ tracks_summary_df_2 <- lineages_df %>%
   rename_with(~str_replace(.x, "frame", "time"), contains("frame")) %>%
   mutate(across(contains("time"), ~.x * 10)) %>%
   relocate(where(is.character), where(is.factor), where(is.logical), where(is.numeric)) %>%
-  select(-exists_before_experiment, -exists_before_or_during_experiment, -exists_after_experiment, -initial_time, -end_time, -dead_or_missing_after_start_time) %>% 
+  select(-exists_before_experiment, -exists_before_or_during_experiment, -exists_after_experiment, -dead_or_missing_after_start_time) %>% 
   glimpse() %>% 
   identity()
 ```

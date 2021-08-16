@@ -204,8 +204,24 @@ tracks_summary_df %>%
   ggplot(aes(x = cell_status, y = value, fill = cell_status)) +
   stat_halfeye() +
   stat_summary(fun=median, geom="line", aes(group=1))  + 
-  stat_compare_means(method = "anova", label.y.npc = 0.9) + # Add global annova p-value
-  stat_compare_means(label = "p.signif", method = "t.test", ref.group = "Filamented - Survived", hide.ns = TRUE, label.y.npc = 0.8) +
+  stat_compare_means(
+    method = "t.test",
+    comparisons = list(c("Not filamented - Survived", "Not filamented - Not survived")),
+    label = "p.signif",
+    label.y = c(1.08),
+    hide.ns = TRUE
+  ) +
+  stat_compare_means(
+    method = "anova",
+    label.y.npc = 0.9
+  ) + # Add global annova p-value
+  stat_compare_means(
+    label = "p.signif",
+    method = "t.test",
+    ref.group = "Filamented - Survived",
+    hide.ns = TRUE,
+    label.y.npc = 0.8
+    ) +
   stat_gradientinterval(position = "dodge", fill_type = "segments") +
   facet_grid(experiment_id ~ metric) +
   guides(
@@ -272,10 +288,28 @@ tracks_summary_df %>%
   filter(!is.na(value)) %>% 
   identity() %>% 
   ggplot(aes(x = cell_status, y = value, fill = cell_status)) +
+  geom_hline(aes(yintercept = filamentation_threshold), linetype = "dashed", alpha = 1 / 2) +
   stat_halfeye() +
-  stat_summary(fun=median, geom="line", aes(group=1))  + 
-  stat_compare_means(method = "anova", label.y.npc = 0.4, label.x.npc = 0.5) + # Add global annova p-value
-  stat_compare_means(label = "p.signif", method = "t.test", ref.group = "Filamented - Survived", hide.ns = TRUE, label.y.npc = 0.3) +
+  stat_summary(fun=median, geom="line", aes(group=1))  +
+  stat_compare_means(
+    method = "t.test",
+    comparisons = list(c("Not filamented - Survived", "Not filamented - Not survived")),
+    label = "p.signif",
+    label.y = c(60),
+    hide.ns = TRUE
+  ) +
+  stat_compare_means(
+    method = "anova",
+    label.y.npc = 0.4,
+    label.x.npc = 0.5
+  ) + # Add global annova p-value
+  stat_compare_means(
+    label = "p.signif",
+    method = "t.test",
+    ref.group = "Filamented - Survived",
+    hide.ns = TRUE,
+    label.y.npc = 0.3
+  ) +
   stat_gradientinterval(position = "dodge", fill_type = "segments") +
   facet_grid(experiment_id ~ metric) +
   coord_cartesian(ylim = c(0, 150)) +
@@ -300,8 +334,8 @@ tracks_summary_df %>%
 ```{r}
 tracks_summary_df %>% 
   ggplot(aes(x = initial_gfp, y = initial_length, color = cell_status)) +
-  geom_point(alpha = 1/20) +
-  facet_grid(~experiment_id) +
+  geom_point(alpha = 1/2, size = 0.5) +
+  facet_wrap(~experiment_id, scales = "free") +
   guides(
     color = guide_legend(ncol = 2, override.aes = list(alpha = 1)),
     fill = guide_legend(ncol = 2)
@@ -330,6 +364,50 @@ tracks_summary_df %>%
   ) +
   NULL
 ```
+
+### Time to SOS
+
+```{r}
+tracks_summary_df %>% 
+  filter(filamented_id == "Filamented") %>% 
+  mutate(time_to_sos = factor(sos_at_time - initial_time)) %>%
+  identity() %>% 
+  ggplot(aes(x = time_to_sos, fill = survived_strict)) +
+  geom_bar(aes(y = ..count..), position = "fill") +
+  facet_grid(experiment_id ~ ., scales = "free_y") +
+  NULL
+
+tracks_summary_df %>% 
+  filter(filamented_id == "Filamented") %>% 
+  mutate(time_to_sos = sos_at_time - initial_time) %>%
+  identity() %>% 
+  ggplot(aes(x = experiment_id, y = time_to_sos, fill = experiment_id)) +
+  stat_halfeye() +
+  NULL
+```
+
+```{r}
+tracks_summary_df %>% 
+  filter(filamented_id == "Filamented") %>% 
+  mutate(time_to_sos = sos_at_time - initial_time) %>%
+  identity() %>% 
+  ggplot(aes(x = initial_length, y = initial_gfp, z = time_to_sos)) +
+  stat_summary_2d(fun = median) +
+  facet_grid(experiment_id ~ survived_strict, scales = "free_y") +
+  NULL
+```
+
+```{r}
+tracks_summary_df %>% 
+  filter(filamented_id == "Filamented") %>% 
+  mutate(time_to_sos = sos_at_time - initial_time) %>%
+  identity() %>% 
+  ggplot(aes(x = end_length - initial_length, y = end_gfp - initial_gfp, z = time_to_sos)) +
+  stat_summary_2d(fun = median) +
+  facet_grid(experiment_id ~ survived_strict, scales = "free_y") +
+  NULL
+```
+
 
 ### Life time
 
@@ -377,6 +455,7 @@ tracks_summary_df %>%
     .groups = "drop"
   ) %>%
   parse_metrics_column(metric) %>% 
+  mutate(lived_time = factor(lived_time)) %>% 
   identity() %>% 
   ggplot(aes(x = lived_time, y = value)) +
   geom_line(aes(group = lived_time)) +
